@@ -2,18 +2,24 @@ import React, { useEffect, useRef, useState } from 'react';
 import { fetchPlanetInsights } from '../services/planetService';
 
 const LAYER_IDS = [
-  'EVI',
-  '3_NDVI-L1C',
-  'MOISTURE-INDEX',
-  '5_MOISTURE-INDEX-L1C',
-  '7_NDWI-L1C',
-  '8_NDSI-L1C',
-  '1_TRUE-COLOR-L1C',
-  '2_FALSE-COLOR-L1C',
-  '4_FALSE-COLOR-URBAN-L1C',
-  '2_TONEMAPPED-NATURAL-COLOR-L1C',
-  '6_SWIR-L1C',
+  // 🌱 EXISTING (11)
+  'EVI', '3_NDVI-L1C', 'MOISTURE-INDEX', '5_MOISTURE-INDEX-L1C',
+  '7_NDWI-L1C', '8_NDSI-L1C', '1_TRUE-COLOR-L1C', '2_FALSE-COLOR-L1C',
+  '4_FALSE-COLOR-URBAN-L1C', '2_TONEMAPPED-NATURAL-COLOR-L1C', '6_SWIR-L1C',
+  
+  // 🔥 APPLE DISEASE (17 NEW)
+  'OSAVI', 'PSRI', 'ExG', 'VARI', 'GNDVI', 'NDMI', 'SAVI', 
+  'NDWI', 'LSWI', 'NGRDI', 'CIGREEN', 'GLI', 'NDRE', 'MSAVI',
+  'DVI', 'RVI', 'IPVI', 'NDGI'
 ];
+
+const LAYER_GROUPS = {
+  '🌱 Vegetation Health': ['EVI', '3_NDVI-L1C', 'OSAVI', 'SAVI', 'MSAVI', 'GNDVI', 'NDRE'],
+  '🔥 Apple Disease': ['PSRI', 'ExG', 'VARI', 'NGRDI', 'CIGREEN', 'GLI', 'NDGI'],
+  '💧 Moisture/Water': ['MOISTURE-INDEX', '5_MOISTURE-INDEX-L1C', 'NDMI', 'NDWI', 'LSWI'],
+  '🌈 Visual': ['1_TRUE-COLOR-L1C', '2_FALSE-COLOR-L1C', '4_FALSE-COLOR-URBAN-L1C', '2_TONEMAPPED-NATURAL-COLOR-L1C', '6_SWIR-L1C'],
+  '❄️ Other': ['8_NDSI-L1C', 'DVI', 'RVI', 'IPVI']
+};
 
 type Props = {
   initialLat?: number;
@@ -41,7 +47,7 @@ export const PlanetMapViewer: React.FC<Props> = ({
     return d.toISOString().slice(0, 10);
   });
   const [endDate, setEndDate] = useState<string>(
-    () => new Date().toISOString().slice(0, 10),
+    () => new Date().toISOString().slice(0, 10)
   );
   const [activeLayers, setActiveLayers] = useState<Record<string, boolean>>({});
   const [planetUnavailable, setPlanetUnavailable] = useState<boolean>(false);
@@ -49,6 +55,7 @@ export const PlanetMapViewer: React.FC<Props> = ({
   const liveRef = useRef<number | null>(null);
   const [live, setLive] = useState<boolean>(false);
   const [showLayerDetails, setShowLayerDetails] = useState(false);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
 
   const baseLayerRef = useRef<any>(null);
 
@@ -76,7 +83,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
       const L = (window as any).L;
       if (!L || !containerRef.current) return;
       if (!mapRef.current) {
-        // Initial zoom increased from 5/8 to 10
         mapRef.current = L.map(containerRef.current).setView(
           [defaultLat, defaultLon],
           10,
@@ -159,7 +165,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -181,8 +186,7 @@ export const PlanetMapViewer: React.FC<Props> = ({
     if (on && L && mapRef.current) {
       try {
         const layerName = encodeURIComponent(id);
-        const base =
-          'https://kqilyltlrklxaxqqqisj.functions.supabase.co/planet-proxy';
+        const base = 'https://kqilyltlrklxaxqqqisj.functions.supabase.co/planet-proxy';
 
         const tplUrl =
           `${base}?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0` +
@@ -196,7 +200,7 @@ export const PlanetMapViewer: React.FC<Props> = ({
           opacity: 0.95,
           tileSize: 512,
           maxZoom: 19,
-          minZoom: 8, // prevent zooming out to invalid (too coarse) resolution
+          minZoom: 8,
         });
 
         t.addTo(mapRef.current);
@@ -211,6 +215,10 @@ export const PlanetMapViewer: React.FC<Props> = ({
         delete leafletLayersRef.current[id];
       }
     }
+  };
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroup(expandedGroup === groupName ? null : groupName);
   };
 
   const handleFetch = async () => {
@@ -288,6 +296,24 @@ export const PlanetMapViewer: React.FC<Props> = ({
       ? 'Natural color'
       : id === '6_SWIR-L1C'
       ? 'SWIR'
+      : id === 'OSAVI' ? 'OSAVI'
+      : id === 'PSRI' ? 'PSRI'
+      : id === 'ExG' ? 'ExG'
+      : id === 'VARI' ? 'VARI'
+      : id === 'GNDVI' ? 'GNDVI'
+      : id === 'NDMI' ? 'NDMI'
+      : id === 'SAVI' ? 'SAVI'
+      : id === 'NDWI' ? 'NDWI'
+      : id === 'LSWI' ? 'LSWI'
+      : id === 'NGRDI' ? 'NGRDI'
+      : id === 'CIGREEN' ? 'CIGREEN'
+      : id === 'GLI' ? 'GLI'
+      : id === 'NDRE' ? 'NDRE'
+      : id === 'MSAVI' ? 'MSAVI'
+      : id === 'DVI' ? 'DVI'
+      : id === 'RVI' ? 'RVI'
+      : id === 'IPVI' ? 'IPVI'
+      : id === 'NDGI' ? 'NDGI'
       : id;
 
   return (
@@ -311,29 +337,54 @@ export const PlanetMapViewer: React.FC<Props> = ({
               className="text-[11px] text-black-600 underline"
               onClick={() => setShowLayerDetails((v) => !v)}
             >
-              {showLayerDetails ? 'Hide Layers' : 'Additional Info-layers'}
+              {showLayerDetails ? 'Hide Layers' : 'Additional Info'}
             </button>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {LAYER_IDS.map((id) => (
-              <button
-                key={id}
-                onClick={() => toggleLayer(id)}
-                className={`px-3 py-1 text-xs rounded-full border ${
-                  activeLayers[id]
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-gray-800'
-                }`}
-              >
-                {friendlyName(id)}
-              </button>
+
+          {/* DRILLDOWN GROUPS */}
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {Object.entries(LAYER_GROUPS).map(([groupName, layers]) => (
+              <div key={groupName} className="border-b border-gray-200 pb-2 last:border-b-0">
+                <button
+                  onClick={() => toggleGroup(groupName)}
+                  className="w-full flex items-center justify-between text-xs font-medium p-2 bg-gray-100 hover:bg-gray-200 rounded transition-all"
+                >
+                  <span>{groupName}</span>
+                  <span className={`transform transition-transform ${
+                    expandedGroup === groupName ? 'rotate-180' : ''
+                  }`}>
+                    ▼
+                  </span>
+                </button>
+                
+                {expandedGroup === groupName && (
+                  <div className="pl-4 mt-1 flex flex-wrap gap-1">
+                    {layers.map((id) => (
+                      <button
+                        key={id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleLayer(id);
+                        }}
+                        className={`px-2 py-1 text-[10px] rounded-full border ${
+                          activeLayers[id]
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-800 border-gray-300 hover:border-gray-400'
+                        }`}
+                      >
+                        {friendlyName(id)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
 
           {showLayerDetails && (
             <div className="mt-2 bg-white border border-gray-200 rounded p-2 text-[11px] text-gray-700">
               <div className="font-semibold mb-1">Layer details</div>
-              <ul className="space-y-1">
+              <ul className="space-y-1 max-h-32 overflow-y-auto">
                 {LAYER_IDS.map((id) => (
                   <li key={id}>
                     <span className="font-medium">{friendlyName(id)}:</span>{' '}
@@ -389,7 +440,7 @@ export const PlanetMapViewer: React.FC<Props> = ({
               checked={live}
               onChange={(e) => setLive(e.target.checked)}
             />
-            <span>Live updates (map move)</span>
+            <span>Live updates</span>
           </label>
         </div>
       </div>
