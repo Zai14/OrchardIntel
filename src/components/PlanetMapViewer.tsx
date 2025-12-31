@@ -10,15 +10,19 @@ const LAYER_IDS = [
   // 🔥 APPLE DISEASE (17 NEW)
   'OSAVI', 'PSRI', 'ExG', 'VARI', 'GNDVI', 'NDMI', 'SAVI', 
   'NDWI', 'LSWI', 'NGRDI', 'CIGREEN', 'GLI', 'NDRE', 'MSAVI',
-  'DVI', 'RVI', 'IPVI', 'NDGI'
+  'DVI', 'RVI', 'IPVI', 'NDGI',
+  
+  // 🔥 PHASE 2 NEW (11 NEW UNUSED)
+  'RENDVI', 'MCARI', 'MTCI', 'TCARI', 'TSAVI', 'WDVI', 'PVI', 
+  'TVI', 'VIGREEN', 'SIPI', 'WBI'
 ];
 
 const LAYER_GROUPS = {
-  '🌱 Vegetation Health': ['EVI', '3_NDVI-L1C', 'OSAVI', 'SAVI', 'MSAVI', 'GNDVI', 'NDRE'],
+  '🌱 Vegetation Health': ['EVI', '3_NDVI-L1C', 'OSAVI', 'SAVI', 'MSAVI', 'GNDVI', 'NDRE', 'RENDVI', 'MCARI', 'MTCI', 'TCARI', 'TSAVI'],
   '🔥 Apple Disease': ['PSRI', 'ExG', 'VARI', 'NGRDI', 'CIGREEN', 'GLI', 'NDGI'],
   '💧 Moisture/Water': ['MOISTURE-INDEX', '5_MOISTURE-INDEX-L1C', 'NDMI', 'NDWI', 'LSWI'],
   '🌈 Visual': ['1_TRUE-COLOR-L1C', '2_FALSE-COLOR-L1C', '4_FALSE-COLOR-URBAN-L1C', '2_TONEMAPPED-NATURAL-COLOR-L1C', '6_SWIR-L1C'],
-  '❄️ Other': ['8_NDSI-L1C', 'DVI', 'RVI', 'IPVI']
+  '❄️ Other': ['8_NDSI-L1C', 'DVI', 'RVI', 'IPVI', 'WDVI', 'PVI', 'TVI', 'VIGREEN', 'SIPI', 'WBI']
 };
 
 type Props = {
@@ -314,6 +318,17 @@ export const PlanetMapViewer: React.FC<Props> = ({
       : id === 'RVI' ? 'RVI'
       : id === 'IPVI' ? 'IPVI'
       : id === 'NDGI' ? 'NDGI'
+      : id === 'RENDVI' ? 'RENDVI'
+      : id === 'MCARI' ? 'MCARI'
+      : id === 'MTCI' ? 'MTCI'
+      : id === 'TCARI' ? 'TCARI'
+      : id === 'TSAVI' ? 'TSAVI'
+      : id === 'WDVI' ? 'WDVI'
+      : id === 'PVI' ? 'PVI'
+      : id === 'TVI' ? 'TVI'
+      : id === 'VIGREEN' ? 'VIGREEN'
+      : id === 'SIPI' ? 'SIPI'
+      : id === 'WBI' ? 'WBI'
       : id;
 
   return (
