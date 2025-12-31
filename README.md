@@ -34,7 +34,8 @@ A **React + TypeScript** app for apple leaf disease prediction, dataset manageme
 - **Live Kashmir Orchards** → 34.1°N, 74.8°E (Sopore apple belt)
 - **Supabase Edge Functions** → Planet API proxy
 - **Leaflet Maps** → WMTS tiles streaming
-🌍 Advanced Planet Insights Layers
+- 
+### 🌍 Advanced Planet Insights Layers
 
 ### 39 Planet WMTS Layers integrated (Vegetation, Apple Disease, Moisture, Visual & Stress indices)
 
@@ -232,11 +233,8 @@ MIT License – Issues and contributions welcome.
 ## Author
 
 **Za.i.14**
-
-[![Instagram](https://img.shields.io/badge/Instagram-%23E4405F?style=for-the-badge&logo=instagram&logoColor=white)](https://instagram.com/Za.i.14)  
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://linkedin.com/in/zai14)  
-[![X](https://img.shields.io/badge/X-000000?style=for-the-badge&logo=X&logoColor=white)](https://x.com/Za_i14)  
-[![YouTube](https://img.shields.io/badge/YouTube-FF0000?style=for-the-badge&logo=YouTube&logoColor=white)](https://youtube.com/@Za.i.14)  
-[![Email](https://img.shields.io/badge/Email-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:ZaidShabir67@gmail.com)
+### Contact
+For more information, please contact Zai14 through his Socials:
+ [![Instagram](https://img.shields.io/badge/Instagram-%23E4405F.svg?logo=Instagram&logoColor=white)](https://instagram.com/Za.i.14)  [![LinkedIn](https://img.shields.io/badge/LinkedIn-%230077B5.svg?logo=linkedin&logoColor=white)](https://linkedin.com/in/zai14)  [![X](https://img.shields.io/badge/X-black.svg?logo=X&logoColor=white)](https://x.com/Za_i14)  [![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?logo=YouTube&logoColor=white)](https://youtube.com/@Za.i.14)  [![email](https://img.shields.io/badge/Email-D14836?logo=gmail&logoColor=white)](mailto:ZaidShabir67@gmail.com)
 
 *Built with ❤️ for the Crop Community using React + Supabase + Planet APIs.*
