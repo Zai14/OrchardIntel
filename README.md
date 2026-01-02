@@ -1,6 +1,6 @@
 # OrchardIntel: Apple Disease Detector with Planet Climate Risk Advisor
 
-A **React + TypeScript** app for apple leaf disease prediction, dataset management, model training simulation, climate risk analysis with **Planet map viewer**, and **Supabase Edge Functions** integration.
+A **React + TypeScript** app for apple leaf disease prediction, dataset management, model training simulation, climate risk analysis with **Planet map viewer**, dynamic farm health scoring, and **Supabase Edge Functions** integration.
 
 ---
 
@@ -22,41 +22,76 @@ A **React + TypeScript** app for apple leaf disease prediction, dataset manageme
 - Real-time progress simulation via `TrainingProgress`
 - Edge Function support: `train-model`
 
-### Climate Risk Predictor
-- Rule-based engine for diseases/pests with **Standard** and **Meta** scoring
-- Planet WMTS map viewer + Open-Meteo climate data
+### 🎯 Climate Risk Predictor (Enhanced)
+
+#### **Dynamic Farm Health Scoring**
+- **Dual-factor calculation** combining climate parameters + disease risk assessment
+- **Climate Score (0-50 points)**:
+  - Penalizes non-optimal temperature (< 15°C or > 28°C)
+  - High humidity (> 85%) - favors disease development
+  - Excessive rainfall (> 30 mm)
+  - Extended leaf wetness (> 12 hours)
+  - Poor air circulation (< 2 km/h wind)
+  - Standing water > 48 hours
+  - Temperature jumps > 10°C
+  - Drought followed by heavy rain events
+
+- **Disease Risk Score (0-50 points)**:
+  - High risk diseases: -15 points each
+  - Medium risk diseases: -8 points each
+  - Low risk diseases with no high risks: +5 bonus points
+
+- **Total Score (0-100%)**:
+  - ✅ **80-100%**: Excellent (Emerald) - Healthy farm
+  - ⚠️ **60-79%**: Good (Yellow) - Monitor conditions
+  - ⚡ **40-59%**: Fair (Orange) - Intervention recommended
+  - 🚨 **0-39%**: Poor (Red) - Urgent action needed
+
+- **Color-coded visual feedback** with animated progress bar
+
+#### **Risk Scoring System**
+- Rule-based engine for diseases/pests with **Standard** and **Meta** scoring modes
+- **Standard Mode**: Rule-based scoring (±20 points per matched condition)
+- **Meta Mode**: Range-based continuous scoring across climate parameter ranges
 - Per-disease tie-breaker weights (~1.05–1.1)
 
-### 🎯 AOI Live Fetch & Risk Analysis (NEW)
-- **Single Point Mode**: Click on map → fetch climate data for exact location via `planet-insights`
-- **Boundary (AOI) Mode**: Draw polygon/line/rectangle on map → fetch aggregated climate data for entire area via `planet-aoi` Edge Function
-- **Live Button**: Single button triggers appropriate fetch based on selected mode
+#### **Advanced Options (Drill-down Panel)**
+- **Collapsible section** below Canopy Humidity for cleaner UI
+- **Condition Checkboxes**:
+  - 💧 Standing water > 48 hours
+  - 🌡️ Temperature jump > 10°C
+  - 🌩️ Drought then heavy rain
+- **Environment Selects**:
+  - ✨ Dust Level (Unknown, Low, Medium, High)
+  - 🌊 Drainage (Unknown, Good, Poor)
+
+#### **Auto-prediction on Live Data Load**
+- When Planet map data is fetched (Point or AOI mode), risk analysis automatically runs
+- Climate parameters auto-populate from satellite data
+- Farm health score recalculates in real-time
+- Loading indicator shows when data is being processed
+
+#### **Planet WMTS Map Integration**
+- Live Planet satellite imagery with 39 integrated layers:
+  - **Vegetation Health**: NDVI, EVI, OSAVI, SAVI, MSAVI, GNDVI, NDRE, RENDVI
+  - **Apple Disease**: PSRI (Fire Blight), ExG & VARI (Leaf Health), NDMI & LSWI (Scab/Moisture)
+  - **Moisture & Stress**: NDWI, NDMI, LSWI, Soil Moisture Index
+  - **Visual & Spectral**: True Color, False Color, Urban, SWIR
+  - **Advanced Research**: MCARI, MTCI, TCARI, TSAVI, SIPI, WBI, VIGREEN
+- Grouped layer UI: Vegetation Health / Apple Disease / Moisture / Visual / Other
+- Drill-down selectable layers with collapsible sections
+
+#### **Drawing Tools & AOI Analysis**
+- **Single Point Mode**: Click on map → fetch climate data for exact location
+- **Boundary (AOI) Mode**: Draw polygon, line, or rectangle → fetch aggregated climate data
+- **Live Button**: Triggers appropriate fetch based on selected mode
 - **Climate Data Retrieved**:
-  - Temperature, rainfall, humidity, wind speed, soil moisture, canopy humidity, wetness hours
+  - Temperature, rainfall, humidity, wind speed, soil moisture, canopy humidity, leaf wetness
 - **Risk Analysis Computed**:
-  - Risk score (0-100) based on temperature, humidity, leaf wetness, soil moisture, rainfall
+  - Risk score (0-100) based on comprehensive climate metrics
   - Risk levels: Low, Medium, High, Critical
-  - AI-powered recommendations for disease prevention (fungicide application, irrigation adjustment, etc.)
-- **Auto-fill Form**: Climate data + risk analysis auto-populate parent form for decision-making
-- **Layer Support**: All selected Planet layers included in AOI analysis requests
-
-### 🌍 Advanced Planet Insights Layers
-
-### 39 Planet WMTS Layers integrated (Vegetation, Apple Disease, Moisture, Visual & Stress indices)
-
-**Apple disease intelligence** → PSRI (Fire Blight), ExG & VARI (Leaf Health), NDMI & LSWI (Scab / Moisture Risk)
-
-**Vegetation analytics** → NDVI, EVI, OSAVI, SAVI, MSAVI, GNDVI, NDRE, RENDVI
-
-**Moisture & canopy stress** → NDWI, NDMI, LSWI, Soil Moisture Index
-
-**Visual & spectral context** → True Color, False Color, Urban, SWIR
-
-**Phase-2 research indices enabled** → MCARI, MTCI, TCARI, TSAVI, SIPI, WBI, VIGREEN
-
-**Drill-down layer UI grouped into Vegetation Health / Apple Disease / Moisture / Visual / Other**
-
-**Live WMTS streaming via Supabase Planet proxy (Leaflet-based)**
+  - Matched factors displayed (rainfall patterns, wind conditions, etc.)
+- **Auto-fill Form**: All climate data + risk analysis auto-populate parent form
 
 ### Authentication
 - Supabase email/password auth + guest mode
@@ -112,26 +147,26 @@ src/
     PredictionResults.tsx
     DatasetManager.tsx
     TrainingProgress.tsx
-    ClimateRiskPredictor.tsx
-    PlanetMapViewer.tsx        # Single Point + AOI Boundary modes
+    ClimateRiskPredictor.tsx        # NEW: Dynamic farm health scoring + auto-prediction
+    PlanetMapViewer.tsx             # Enhanced: Point + AOI modes with auto-fill
     Auth.tsx
   services/
     datasetService.ts
     modelService.ts
     predictionService.ts
-    planetService.ts           # fetchPlanetInsights (single point)
+    planetService.ts                # fetchPlanetInsights (single point)
   utils/
     realClassifier.ts
     enhancedClassifier.ts
-    climateRiskRules.ts        # calculateDiseaseRisks / calculatePestRisks
+    climateRiskRules.ts             # NEW: Enhanced disease risk calculation
     imagePreprocessing.ts
 
 supabase/functions/
   predict-disease/
   train-model/
-  planet-proxy/                # WMTS tiles
-  planet-insights/             # Climate data (single point)
-  planet-aoi/                  # Climate + risk analysis (boundary AOI) - NEW
+  planet-proxy/                    # WMTS tiles
+  planet-insights/                 # Climate data (single point)
+  planet-aoi/                      # Climate + risk analysis (boundary AOI)
 ```
 
 ---
@@ -153,38 +188,69 @@ DatasetManager -> Select type -> Drag folder -> Auto-classify
 Configure parameters -> Start -> Live metrics (loss/accuracy)
 ```
 
-### 4. Climate Risk Prediction
-```
-Planet map -> Select mode (Point/AOI) -> Live button -> Climate + Risk data auto-filled
-```
+### 4. Climate Risk Prediction (NEW WORKFLOW)
 
-#### Point Mode
-- Center map on location
-- Click **Live** to fetch climate data for that exact point
+#### **Step-by-Step Guide**
 
-#### Boundary (AOI) Mode
-- Draw shape (polygon, line, rectangle)
-- Click **Live** to fetch climate data for entire area
-- Receive risk analysis + treatment recommendations
+1. **Select Risk Type**: Choose between 🌿 Diseases or 🐛 Pests
+2. **Configure Climate Parameters**:
+   - Enter basic metrics: Temperature, Humidity, Rainfall, Wind Speed, etc.
+   - Expand "Advanced Options" for Standing Water, Temp Jumps, Drought conditions, Dust Level, Drainage
+3. **Use Planet Live Data** (Recommended):
+   - Select layers on Planet map (Vegetation Health, Apple Disease, Moisture, etc.)
+   - **Point Mode**: Click on map location → Live button fetches exact point data
+   - **AOI Mode**: Draw polygon/rectangle on map → Live button fetches area data
+4. **Auto-predictions Trigger**:
+   - Climate data auto-populates form
+   - Risk analysis runs automatically
+   - Top 3 disease/pest risks displayed with scores and matched factors
+5. **View Farm Health Score**:
+   - Located below action buttons
+   - Shows overall farm condition based on climate + disease risk
+   - Color-coded status: ✅ Excellent / ⚠️ Good / ⚡ Fair / 🚨 Poor
+6. **Make Decisions**:
+   - Review risk summary (High/Medium/Low counts)
+   - Check matched risk factors
+   - Plan interventions based on farm health score
 
 ---
 
 ## Climate Risk Engine
 
-- **Scoring (0–100):**
-  - Standard: +20 per matched rule
-  - Meta: Continuous climate ranges
-  - AOI Risk: Temperature (15-25°C optimal), Humidity (85%+ high risk), Leaf Wetness (12+ hours), Soil Moisture (50-80% optimal), Rainfall (20+ mm)
-- **Risk Levels:**
+### **Scoring Methodology (0–100)**
 
-| Range    | Level   |
-|----------|--------|
-| 0–30     | Low     |
-| 31–70    | Medium  |
-| 71–100   | High    |
-| 80+      | Critical |
+#### Standard Mode (Rule-based)
+```
++20 points per matched condition
+Max: 100 points
+```
 
-- Tie-breaker: `diseaseWeights` in `climateRiskRules.ts`
+#### Meta Mode (Range-based)
+```
+Continuous scoring across climate parameter ranges:
+- Temperature: 15-25°C optimal
+- Humidity: 85%+ high risk
+- Leaf Wetness: 12+ hours critical
+- Soil Moisture: 50-80% optimal
+- Rainfall: 20+ mm increases risk
+```
+
+#### Farm Health Score (NEW)
+```
+Climate Score (0-50) + Disease Score (0-50) = Total (0-100)
+Average of both factors = Final Health Score %
+```
+
+### **Risk Levels**
+
+| Range    | Level      | Status          |
+|----------|-----------|-----------------|
+| 0–30     | Low       | ✅ Safe         |
+| 31–70    | Medium    | ⚠️ Monitor      |
+| 71–90    | High      | ⚡ Act Now      |
+| 90+      | Critical  | 🚨 Emergency    |
+
+- **Tie-breaker**: `diseaseWeights` in `climateRiskRules.ts` (~1.05–1.1 multipliers)
 
 ---
 
@@ -197,10 +263,10 @@ supabase functions deploy predict-disease train-model planet-proxy planet-insigh
 **Function ENV variables:**
 
 ```bash
-PLANET_API_KEY=...
-PLANET_CONFIG_ID_JK=...
-SUPABASE_URL=...
-SUPABASE_SERVICE_ROLE_KEY=...
+PLANET_API_KEY=your_planet_api_key
+PLANET_CONFIG_ID_JK=your_planet_config_id
+SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
 - Database schema: `supabase/migrations/20251222061318_odd_trail.sql` (with RLS & buckets)
@@ -209,36 +275,79 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 ## Disease Classes
 
-| Disease            | Severity | Description                |
-|-------------------|----------|----------------------------|
-| Healthy            | Low      | Normal leaves             |
-| Apple Scab         | High     | Dark fungal lesions       |
-| Apple Rust         | Medium   | Orange cedar rust spots   |
-| Powdery Mildew     | Medium   | White powdery coating     |
-| Fire Blight        | High     | Bacterial burn            |
-| Black Rot          | High     | Brown spots + purple      |
+| Disease            | Severity | Description                     | Risk Factor |
+|-------------------|----------|--------------------------------|------------|
+| Healthy            | Low      | Normal leaves                  | 0-20%      |
+| Apple Scab         | High     | Dark fungal lesions            | 70-100%    |
+| Apple Rust         | Medium   | Orange cedar rust spots        | 40-70%     |
+| Powdery Mildew     | Medium   | White powdery coating          | 45-75%     |
+| Fire Blight        | High     | Bacterial burn                 | 65-95%     |
+| Black Rot          | High     | Brown spots + purple halo      | 60-90%     |
+
+---
+
+## UI/UX Enhancements
+
+### **ClimateRiskPredictor Component**
+- ✅ Organized left panel with climate parameters
+- ✅ Drill-down advanced options to reduce clutter
+- ✅ Dynamic farm health score card below buttons
+- ✅ Color-coded risk summary (High/Medium/Low)
+- ✅ Top 3 risks with matched factors
+- ✅ Auto-loading indicator during Planet data fetch
+- ✅ Responsive 2-column layout (parameters + map)
+
+### **PlanetMapViewer Component**
+- ✅ Multi-mode drawing (Point, Polygon, Rectangle, Line)
+- ✅ Layer selection with grouping
+- ✅ Live button with auto-fill callback
+- ✅ Date range picker
+- ✅ "Locate" button for user coordinates
+- ✅ "Live updates" toggle for real-time data
 
 ---
 
 ## Troubleshooting
 
-| Issue            | Solution                                     |
-|------------------|---------------------------------------------|
-| Planet 400       | Ensure `PLANET_API_KEY` is set in functions |
-| Folder upload    | Use Chrome/Edge and select a folder         |
-| No climate data  | Mock fallback is active                      |
-| AOI fetch fails  | Check `planet-aoi` function deployed; Open-Meteo API available |
-| Limited features | Add frontend `.env` variables               |
+| Issue                     | Solution                                        |
+|---------------------------|------------------------------------------------|
+| Planet 400 error          | Ensure `PLANET_API_KEY` set in Edge Functions |
+| Folder upload fails       | Use Chrome/Edge, select folder with subfolders|
+| No climate data           | Mock fallback active; check Open-Meteo API    |
+| AOI fetch fails           | Verify `planet-aoi` function deployed         |
+| Farm health score at 85%  | Default; run "Predict Risk" to calculate real |
+| Advanced options hidden   | Click "🔧 Advanced Options" to expand         |
+| Auto-prediction not work  | Ensure Planet map data is loaded first        |
+
+---
+
+## Recent Changes (Latest Commit)
+
+### **Dynamic Farm Health Scoring**
+- ✨ Added climate-based health score calculation (0-100%)
+- ✨ Integrated disease risk assessment into farm health metrics
+- ✨ Implemented auto-prediction when Planet map data is loaded
+- ✨ Added drill-down advanced options panel
+- ✨ Improved UI with color-coded health status badges
+- ✨ Added progress bar visualization for farm health trends
+- ✨ Moved farm health score below action buttons for better UX
 
 ---
 
 ## Contributing
 
 ```bash
-git checkout -b feature/name
-# Add rule changes, AOI enhancements, or examples
-git push origin feature/name && create PR
+git checkout -b feature/your-feature-name
+# Add enhancements, fix bugs, or improve documentation
+git push origin feature/your-feature-name && create PR
 ```
+
+### Development Guidelines
+- Follow TypeScript strict mode
+- Use Tailwind CSS for styling
+- Test Planet API integration thoroughly
+- Update README for new features
+- Commit messages: `feat:`, `fix:`, `docs:`, `refactor:`
 
 ---
 
@@ -251,8 +360,28 @@ MIT License – Issues and contributions welcome.
 ## Author
 
 **Za.i.14**
+
 ### Contact
 For more information, please contact Zai14 through his Socials:
  [![Instagram](https://img.shields.io/badge/Instagram-%23E4405F.svg?logo=Instagram&logoColor=white)](https://instagram.com/Za.i.14)  [![LinkedIn](https://img.shields.io/badge/LinkedIn-%230077B5.svg?logo=linkedin&logoColor=white)](https://linkedin.com/in/zai14)  [![X](https://img.shields.io/badge/X-black.svg?logo=X&logoColor=white)](https://x.com/Za_i14)  [![YouTube](https://img.shields.io/badge/YouTube-%23FF0000.svg?logo=YouTube&logoColor=white)](https://youtube.com/@Za.i.14)  [![email](https://img.shields.io/badge/Email-D14836?logo=gmail&logoColor=white)](mailto:ZaidShabir67@gmail.com)
 
-*Built with ❤️ for the Crop Community using React + Supabase + Planet APIs.*
+*Built with ❤️ for the Crop Community using React + TypeScript + Tailwind + Supabase + Planet APIs.*
+
+---
+
+## Roadmap 🗺️
+
+### Phase 2 (Upcoming)
+- [ ] Historical trend analysis dashboard
+- [ ] Multi-field farm management
+- [ ] Mobile app (React Native)
+- [ ] Notification/alert system for critical risks
+- [ ] Integrated treatment recommendation engine
+- [ ] Weather forecast integration (7-day ahead)
+- [ ] Export reports (PDF/CSV)
+
+### Phase 3 (Future)
+- [ ] Farmer community forum
+- [ ] Marketplace for treatments
+- [ ] Integration with smart farm equipment
+- [ ] Blockchain-based supply chain tracking

@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { AlertCircle, TrendingUp, Cloud, Droplets, ChevronDown } from 'lucide-react';
 import {
   calculateDiseaseRisks,
   calculatePestRisks,
@@ -12,6 +13,8 @@ export default function ClimateRiskPredictor(): JSX.Element {
   const [view, setView] = useState<View>('Diseases');
   const [riskModel, setRiskModel] = useState<'standard' | 'meta'>('standard');
   const [showStandardWarning, setShowStandardWarning] = useState(false);
+  const [isAutoFilling, setIsAutoFilling] = useState(false);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
 
   const [viewParams, setViewParams] = useState<any>({
     temperature: 20,
@@ -29,9 +32,76 @@ export default function ClimateRiskPredictor(): JSX.Element {
   });
 
   const [results, setResults] = useState<any[]>([]);
+  const [farmHealthScore, setFarmHealthScore] = useState(85);
 
   const handleChange = (k: string, value: any) => {
     setViewParams((p) => ({ ...p, [k]: value }));
+  };
+
+  // Calculate Farm Health Score based on climate & disease risks
+  const calculateFarmHealth = (climateParams: any, diseaseResults: any[]) => {
+    // Climate Score (0-50 points)
+    let climateScore = 50;
+
+    // Penalize for adverse climate conditions
+    if (climateParams.temperature < 15 || climateParams.temperature > 28) {
+      climateScore -= 8; // Non-optimal temperature
+    }
+    if (climateParams.rh > 85) {
+      climateScore -= 10; // High humidity favors diseases
+    }
+    if (climateParams.weeklyRainfall > 30) {
+      climateScore -= 8; // Excessive rainfall
+    }
+    if (climateParams.leafWetness > 12) {
+      climateScore -= 7; // Extended leaf wetness
+    }
+    if (climateParams.windSpeed < 2) {
+      climateScore -= 5; // Poor air circulation
+    }
+    if (climateParams.hasStandingWater48h) {
+      climateScore -= 10;
+    }
+    if (climateParams.hasTempJump10C) {
+      climateScore -= 8;
+    }
+    if (climateParams.hadDroughtThenHeavyRain) {
+      climateScore -= 9;
+    }
+
+    climateScore = Math.max(0, climateScore);
+
+    // Disease Risk Score (0-50 points)
+    let diseaseScore = 50;
+
+    if (diseaseResults.length > 0) {
+      const highRiskCount = diseaseResults.filter(
+        (r) => r.level === 'High'
+      ).length;
+      const mediumRiskCount = diseaseResults.filter(
+        (r) => r.level === 'Medium'
+      ).length;
+
+      // Deduct points for high and medium risks
+      diseaseScore -= highRiskCount * 15; // 15 points per high risk
+      diseaseScore -= mediumRiskCount * 8; // 8 points per medium risk
+
+      // Bonus if low risk diseases present
+      const lowRiskCount = diseaseResults.filter(
+        (r) => r.level === 'Low'
+      ).length;
+      if (lowRiskCount > 0 && highRiskCount === 0) {
+        diseaseScore += 5;
+      }
+    }
+
+    diseaseScore = Math.max(0, diseaseScore);
+
+    // Total Farm Health Score (0-100)
+    const totalScore = Math.round((climateScore + diseaseScore) / 2);
+
+    setFarmHealthScore(totalScore);
+    return totalScore;
   };
 
   const handlePredict = () => {
@@ -64,318 +134,559 @@ export default function ClimateRiskPredictor(): JSX.Element {
       view === 'Diseases'
         ? calculateDiseaseRisks(paramsForRules as ClimateParams)
         : calculatePestRisks(paramsForRules as ClimateParams);
-    setResults(res.slice(0, 10));
+
+    const resultsSliced = res.slice(0, 10);
+    setResults(resultsSliced);
+
+    // Calculate farm health based on climate and disease risks
+    calculateFarmHealth(paramsForRules, resultsSliced);
   };
 
   const handlePlanetAutoFill = (params: Partial<Record<string, any>>) => {
+    setIsAutoFilling(true);
     setViewParams((p) => ({ ...p, ...params }));
+
+    // Auto-predict after data is filled
+    setTimeout(() => {
+      const updatedParams = { ...viewParams, ...params };
+      const paramsForRules: any = {
+        temperature: Number(updatedParams.temperature),
+        rh: Number(updatedParams.rh),
+        relativeHumidity: Number(updatedParams.rh),
+        weeklyRainfall: Number(updatedParams.weeklyRainfall),
+        rainfall: Number(updatedParams.weeklyRainfall),
+        leafWetness: Number(updatedParams.leafWetness),
+        wetnessHours: Number(updatedParams.leafWetness),
+        windSpeed: Number(updatedParams.windSpeed),
+        soilMoisture:
+          updatedParams.soilMoisture !== undefined
+            ? Number(updatedParams.soilMoisture)
+            : undefined,
+        canopyHumidity:
+          updatedParams.canopyHumidity !== undefined
+            ? Number(updatedParams.canopyHumidity)
+            : undefined,
+        dustLevel: updatedParams.dustLevel,
+        drainage: updatedParams.drainage,
+        hasStandingWater48h: !!updatedParams.hasStandingWater48h,
+        hasTempJump10C: !!updatedParams.hasTempJump10C,
+        hadDroughtThenHeavyRain: !!updatedParams.hadDroughtThenHeavyRain,
+        mode: riskModel,
+      };
+
+      const res =
+        view === 'Diseases'
+          ? calculateDiseaseRisks(paramsForRules as ClimateParams)
+          : calculatePestRisks(paramsForRules as ClimateParams);
+
+      const resultsSliced = res.slice(0, 10);
+      setResults(resultsSliced);
+
+      // Calculate farm health
+      calculateFarmHealth(paramsForRules, resultsSliced);
+      setIsAutoFilling(false);
+    }, 300);
   };
 
   const topResults = results.slice(0, 3);
+  const highRiskCount = results.filter((r) => r.level === 'High').length;
+  const mediumRiskCount = results.filter((r) => r.level === 'Medium').length;
+
+  // Determine health status color
+  const getHealthColor = () => {
+    if (farmHealthScore >= 80) return 'emerald';
+    if (farmHealthScore >= 60) return 'yellow';
+    if (farmHealthScore >= 40) return 'orange';
+    return 'red';
+  };
+
+  const getHealthColorClasses = (score: number) => {
+    if (score >= 80)
+      return {
+        bg: 'bg-emerald-50',
+        border: 'border-emerald-200',
+        text: 'text-emerald-700',
+        bar: 'bg-emerald-500',
+      };
+    if (score >= 60)
+      return {
+        bg: 'bg-yellow-50',
+        border: 'border-yellow-200',
+        text: 'text-yellow-700',
+        bar: 'bg-yellow-500',
+      };
+    if (score >= 40)
+      return {
+        bg: 'bg-orange-50',
+        border: 'border-orange-200',
+        text: 'text-orange-700',
+        bar: 'bg-orange-500',
+      };
+    return {
+      bg: 'bg-red-50',
+      border: 'border-red-200',
+      text: 'text-red-700',
+      bar: 'bg-red-500',
+    };
+  };
+
+  const healthColors = getHealthColorClasses(farmHealthScore);
 
   return (
-    <div
-      className="bg-white rounded-2xl border border-gray-200 p-8"
-      style={{ minHeight: 'calc(100vh - 120px)' }}
-    >
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">
-          Climate Risk Predictor
-        </h2>
-        <div className="flex space-x-2 bg-gray-100 rounded-lg p-1">
+    <div className="bg-white rounded-2xl border border-gray-200 p-4 h-full flex flex-col">
+      {/* HEADER */}
+      <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+        <div className="flex items-center space-x-2">
+          <Cloud className="w-4 h-4 text-blue-600" />
+          <span className="text-sm text-gray-700 font-semibold">
+            Climate Risk Predictor
+          </span>
+        </div>
+        <div className="flex space-x-1 bg-gray-100 rounded-lg p-1">
           <button
             onClick={() => setView('Diseases')}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              view === 'Diseases' ? 'bg-green-600 text-white' : 'text-gray-600'
+            className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+              view === 'Diseases'
+                ? 'bg-green-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-200'
             }`}
           >
-            Diseases
+            🌿 Diseases
           </button>
           <button
             onClick={() => setView('Pests')}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              view === 'Pests' ? 'bg-green-600 text-white' : 'text-gray-600'
+            className={`px-3 py-1 rounded text-xs font-medium transition-all ${
+              view === 'Pests'
+                ? 'bg-green-600 text-white shadow-sm'
+                : 'text-gray-600 hover:bg-gray-200'
             }`}
           >
-            Pests
+            🐛 Pests
           </button>
         </div>
       </div>
 
-      {/* 2-column layout: left form, right big map */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1.9fr] gap-6">
-        {/* LEFT: climate inputs + switches */}
-        <div className="space-y-4">
-          <div className="flex items-center space-x-4 mb-4">
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium">Risk model</label>
+      {/* AUTO-FILL INDICATOR */}
+      {isAutoFilling && (
+        <div className="mb-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-700 flex items-center space-x-2">
+          <div className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+          <span>Loading live climate data from Planet...</span>
+        </div>
+      )}
+
+      {/* 2-column layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.6fr] gap-4 flex-1 overflow-hidden">
+        {/* LEFT PANEL: Climate inputs */}
+        <div className="flex flex-col gap-3 overflow-y-auto pr-2">
+          {/* Risk Model */}
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-3 rounded-lg border border-gray-200">
+            <div className="mb-3">
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Risk Model
+              </label>
               <select
                 value={riskModel}
                 onChange={(e) => setRiskModel(e.target.value as any)}
-                className="px-3 py-1 border rounded-lg"
+                className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md hover:border-gray-400 focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all bg-white"
               >
-                <option value="standard">Standard (rule-based)</option>
-                <option value="meta">Meta (range-based)</option>
+                <option value="standard">📋 Standard (rule-based)</option>
+                <option value="meta">📊 Meta (range-based)</option>
               </select>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
-              <label className="flex items-center space-x-2">
+            {riskModel === 'standard' && (
+              <div className="mb-2">
+                <button
+                  type="button"
+                  onClick={() => setShowStandardWarning((v) => !v)}
+                  className="text-orange-600 text-xs font-semibold underline hover:text-orange-700 transition-colors"
+                >
+                  ⚠️ Warning
+                </button>
+                {showStandardWarning && (
+                  <p className="mt-2 text-[11px] text-orange-700 bg-orange-50 p-2.5 rounded border border-orange-200">
+                    Rule-based model may not predict complex conditions
+                    accurately. Use Meta for range-based scoring.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Climate Parameters */}
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-3 rounded-lg border border-gray-200">
+            <div className="flex items-center space-x-2 mb-2.5">
+              <Droplets className="w-3.5 h-3.5 text-blue-600" />
+              <span className="text-xs font-semibold text-gray-700">
+                Climate Parameters
+              </span>
+            </div>
+            <div className="space-y-2">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  🌡️ Temp (°C)
+                </label>
                 <input
-                  type="checkbox"
-                  checked={viewParams.hasStandingWater48h}
+                  type="number"
+                  value={viewParams.temperature}
                   onChange={(e) =>
-                    handleChange('hasStandingWater48h', e.target.checked)
+                    handleChange('temperature', Number(e.target.value))
                   }
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
-                <span>Standing water &gt;48h</span>
-              </label>
-              <label className="flex items-center space-x-2">
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  💧 RH (%)
+                </label>
                 <input
-                  type="checkbox"
-                  checked={viewParams.hasTempJump10C}
-                  onChange={(e) =>
-                    handleChange('hasTempJump10C', e.target.checked)
-                  }
+                  type="number"
+                  value={viewParams.rh}
+                  onChange={(e) => handleChange('rh', Number(e.target.value))}
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
-                <span>Temp jump &gt;10°C</span>
-              </label>
-              <label className="flex items-center space-x-2">
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  🌧️ Weekly Rainfall (mm)
+                </label>
                 <input
-                  type="checkbox"
-                  checked={viewParams.hadDroughtThenHeavyRain}
+                  type="number"
+                  value={viewParams.weeklyRainfall}
                   onChange={(e) =>
-                    handleChange('hadDroughtThenHeavyRain', e.target.checked)
+                    handleChange('weeklyRainfall', Number(e.target.value))
                   }
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                 />
-                <span>Drought then heavy rain</span>
-              </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  🍃 Leaf Wetness (h)
+                </label>
+                <input
+                  type="number"
+                  value={viewParams.leafWetness}
+                  onChange={(e) =>
+                    handleChange('leafWetness', Number(e.target.value))
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  💨 Wind Speed (km/h)
+                </label>
+                <input
+                  type="number"
+                  value={viewParams.windSpeed}
+                  onChange={(e) =>
+                    handleChange('windSpeed', Number(e.target.value))
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  🌍 Soil Moisture (%)
+                  <span className="text-gray-400 font-normal text-[10px] ml-1">
+                    opt
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  value={viewParams.soilMoisture}
+                  onChange={(e) =>
+                    handleChange('soilMoisture', Number(e.target.value))
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  ☁️ Canopy Humidity (%)
+                  <span className="text-gray-400 font-normal text-[10px] ml-1">
+                    opt
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  value={viewParams.canopyHumidity}
+                  onChange={(e) =>
+                    handleChange('canopyHumidity', Number(e.target.value))
+                  }
+                  className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                />
+              </div>
+
+              {/* DRILL-DOWN SECTION */}
+              <button
+                onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
+                className="w-full flex items-center justify-between px-2.5 py-2 rounded-md bg-white border border-gray-300 hover:bg-gray-50 transition-all mt-1"
+              >
+                <span className="text-xs font-medium text-gray-700">
+                  🔧 Advanced Options
+                </span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-gray-600 transition-transform ${
+                    showAdvancedOptions ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+
+              {/* EXPANDED ADVANCED OPTIONS */}
+              {showAdvancedOptions && (
+                <div className="mt-2 p-2.5 bg-white border border-blue-200 rounded-lg space-y-2.5">
+                  {/* Condition Checkboxes */}
+                  <div className="space-y-1.5">
+                    <label className="flex items-center space-x-2 cursor-pointer hover:bg-blue-50 p-1.5 rounded transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={viewParams.hasStandingWater48h}
+                        onChange={(e) =>
+                          handleChange('hasStandingWater48h', e.target.checked)
+                        }
+                        className="w-3.5 h-3.5 rounded accent-blue-600"
+                      />
+                      <span className="text-xs text-gray-700">
+                        💧 Standing water &gt;48h
+                      </span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer hover:bg-blue-50 p-1.5 rounded transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={viewParams.hasTempJump10C}
+                        onChange={(e) =>
+                          handleChange('hasTempJump10C', e.target.checked)
+                        }
+                        className="w-3.5 h-3.5 rounded accent-blue-600"
+                      />
+                      <span className="text-xs text-gray-700">
+                        🌡️ Temp jump &gt;10°C
+                      </span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer hover:bg-blue-50 p-1.5 rounded transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={viewParams.hadDroughtThenHeavyRain}
+                        onChange={(e) =>
+                          handleChange(
+                            'hadDroughtThenHeavyRain',
+                            e.target.checked
+                          )
+                        }
+                        className="w-3.5 h-3.5 rounded accent-blue-600"
+                      />
+                      <span className="text-xs text-gray-700">
+                        🌩️ Drought then heavy rain
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Selects */}
+                  <div className="space-y-2 border-t border-gray-200 pt-2">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        ✨ Dust Level
+                      </label>
+                      <select
+                        value={viewParams.dustLevel}
+                        onChange={(e) =>
+                          handleChange('dustLevel', e.target.value)
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
+                      >
+                        <option value="unknown">Unknown</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">
+                        🌊 Drainage
+                      </label>
+                      <select
+                        value={viewParams.drainage}
+                        onChange={(e) =>
+                          handleChange('drainage', e.target.value)
+                        }
+                        className="w-full px-2.5 py-1.5 text-xs border border-gray-300 rounded-md hover:border-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-white"
+                      >
+                        <option value="unknown">Unknown</option>
+                        <option value="good">Good</option>
+                        <option value="poor">Poor</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={handlePredict}
+                disabled={isAutoFilling}
+                className="flex-1 bg-gradient-to-r from-green-600 to-green-700 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+              >
+                🔍 Predict Risk
+              </button>
+              <button
+                onClick={() => {
+                  setResults([]);
+                  setFarmHealthScore(85);
+                }}
+                className="flex-1 px-3 py-2 rounded-lg text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-100 transition-all"
+              >
+                Clear
+              </button>
             </div>
           </div>
 
-          {riskModel === 'standard' && (
-            <div className="mb-4">
-              <button
-                type="button"
-                onClick={() => setShowStandardWarning((v) => !v)}
-                className="w-full text-left bg-white text-orange-600 px-0 py-1 text-xs font-semibold underline"
-              >
-                Warning
-              </button>
+          {/* FARM HEALTH SCORE - BELOW BUTTONS */}
+          <div
+            className={`${healthColors.bg} ${healthColors.border} p-4 rounded-lg border`}
+          >
+            <div className="text-xs font-semibold text-gray-700 mb-2">
+              🌱 Farm Health Score
+            </div>
+            <div className="text-center">
+              <div className={`text-4xl font-bold ${healthColors.text} mb-1`}>
+                {farmHealthScore}%
+              </div>
+              <div className="text-[11px] text-gray-600 mb-3">
+                Overall Farm Condition
+              </div>
 
-              {showStandardWarning && (
-                <p className="mt-1 text-[11px] text-gray-700">
-                  The rule-based (Standard) model cannot reliably predict complex
-                  conditions such as Collar/Root Rot, Necrotic Leaf Blotch, and
-                  other scenarios that depend on soil drainage, rapid temperature
-                  swings, or historical drought/standing-water flags. Select{' '}
-                  <strong>Meta</strong> for range-based scoring.
-                </p>
-              )}
-            </div>
-          )}
+              {/* Progress bar */}
+              <div className="w-full h-2 bg-gray-300 rounded-full overflow-hidden mb-2">
+                <div
+                  className={`h-full ${healthColors.bar} transition-all duration-500`}
+                  style={{ width: `${farmHealthScore}%` }}
+                ></div>
+              </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Temperature (°C)
-              </label>
-              <input
-                type="number"
-                value={viewParams.temperature}
-                onChange={(e) =>
-                  handleChange('temperature', Number(e.target.value))
-                }
-                className="mt-1 w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Relative Humidity (%)
-              </label>
-              <input
-                type="number"
-                value={viewParams.rh}
-                onChange={(e) => handleChange('rh', Number(e.target.value))}
-                className="mt-1 w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Weekly Rainfall (mm/week)
-              </label>
-              <input
-                type="number"
-                value={viewParams.weeklyRainfall}
-                onChange={(e) =>
-                  handleChange('weeklyRainfall', Number(e.target.value))
-                }
-                className="mt-1 w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Leaf / Fruit Wetness (hours)
-              </label>
-              <input
-                type="number"
-                value={viewParams.leafWetness}
-                onChange={(e) =>
-                  handleChange('leafWetness', Number(e.target.value))
-                }
-                className="mt-1 w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Wind Speed (km/h)
-              </label>
-              <input
-                type="number"
-                value={viewParams.windSpeed}
-                onChange={(e) =>
-                  handleChange('windSpeed', Number(e.target.value))
-                }
-                className="mt-1 w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Soil Moisture (%){' '}
-                <span className="text-xs text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="number"
-                value={viewParams.soilMoisture}
-                onChange={(e) =>
-                  handleChange('soilMoisture', Number(e.target.value))
-                }
-                className="mt-1 w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Canopy humidity (optional) (%)
-              </label>
-              <input
-                type="number"
-                value={viewParams.canopyHumidity}
-                onChange={(e) =>
-                  handleChange('canopyHumidity', Number(e.target.value))
-                }
-                className="mt-1 w-full px-3 py-2 border rounded-lg"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Dust Level
-              </label>
-              <select
-                value={viewParams.dustLevel as any}
-                onChange={(e) => handleChange('dustLevel', e.target.value)}
-                className="mt-1 w-full px-3 py-2 border rounded-lg"
-              >
-                <option value="unknown">unknown</option>
-                <option value="low">low</option>
-                <option value="medium">medium</option>
-                <option value="high">high</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                Drainage
-              </label>
-              <select
-                value={viewParams.drainage as any}
-                onChange={(e) => handleChange('drainage', e.target.value)}
-                className="mt-1 w-full px-3 py-2 border rounded-lg"
-              >
-                <option value="unknown">unknown</option>
-                <option value="good">good</option>
-                <option value="poor">poor</option>
-              </select>
+              {/* Health status text */}
+              <div className={`text-xs font-semibold ${healthColors.text}`}>
+                {farmHealthScore >= 80
+                  ? '✅ Excellent'
+                  : farmHealthScore >= 60
+                  ? '⚠️ Good'
+                  : farmHealthScore >= 40
+                  ? '⚡ Fair'
+                  : '🚨 Poor'}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* RIGHT: big Planet map viewer in the wider column */}
-        <div className="h-full">
+        {/* RIGHT PANEL: Planet Map Viewer */}
+        <div className="h-full overflow-hidden rounded-lg border border-gray-200">
           <PlanetMapViewer
-            initialLat={viewParams.latitude ?? 0}
-            initialLon={viewParams.longitude ?? 0}
+            initialLat={viewParams.latitude ?? 34.1}
+            initialLon={viewParams.longitude ?? 74.8}
             configId="0dc5fcdc-69e2-4789-8511-6b0cc7efbff3"
             onAutoFill={handlePlanetAutoFill}
           />
         </div>
       </div>
 
-      <div className="flex space-x-3 mt-6">
-        <button
-          onClick={handlePredict}
-          className="bg-gradient-to-r from-green-600 to-green-700 text-white py-2 px-4 rounded-lg font-semibold"
-        >
-          Predict Risk
-        </button>
-        <button
-          onClick={() => {
-            setResults([]);
-          }}
-          className="py-2 px-4 rounded-lg border"
-        >
-          Clear
-        </button>
-      </div>
-
-      <div className="mt-6">
-        <h3 className="text-lg font-semibold mb-2">
-          Top {topResults.length} {view} Risk(s)
-        </h3>
-        {topResults.length === 0 && (
-          <p className="text-sm text-gray-500">
-            No results yet — press Predict Risk
-          </p>
-        )}
-        <div className="space-y-3 mt-3">
-          {topResults.map((r) => (
-            <div key={r.name} className="border rounded-lg p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-md font-bold">{r.name}</div>
-                  <div className="text-sm text-gray-600">
-                    Score: {r.score} • Level:{' '}
-                    <span
-                      className={
-                        r.level === 'High'
-                          ? 'text-red-600'
-                          : r.level === 'Medium'
-                          ? 'text-yellow-600'
-                          : 'text-green-600'
-                      }
-                    >
-                      {r.level}
-                    </span>
-                  </div>
-                </div>
+      {/* RESULTS SECTION - BOTTOM */}
+      {results.length > 0 && (
+        <div className="mt-4 pt-4 border-t border-gray-200">
+          {/* Risk Summary */}
+          <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-2 text-center">
+              <div className="text-sm font-bold text-red-700">{highRiskCount}</div>
+              <div className="text-xs text-red-600">High Risk</div>
+            </div>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-2 text-center">
+              <div className="text-sm font-bold text-yellow-700">
+                {mediumRiskCount}
               </div>
-              <div className="mt-2 text-sm text-gray-700">
-                <div className="font-medium">Matched factors:</div>
-                {r.matchedFactors.length === 0 ? (
-                  <div className="text-gray-500">
-                    None of the monitored parameters matched the favourable
-                    ranges.
+              <div className="text-xs text-yellow-600">Medium Risk</div>
+            </div>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-2 text-center">
+              <div className="text-sm font-bold text-green-700">
+                {results.filter((r) => r.level === 'Low').length}
+              </div>
+              <div className="text-xs text-green-600">Low Risk</div>
+            </div>
+          </div>
+
+          {/* Results List */}
+          <div className="flex items-center space-x-2 mb-2">
+            <TrendingUp className="w-3.5 h-3.5 text-gray-600" />
+            <span className="text-xs font-semibold text-gray-700">
+              Top {Math.min(3, results.length)} Risk(s)
+            </span>
+          </div>
+
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {topResults.map((r, idx) => (
+              <div
+                key={r.name}
+                className="border border-gray-200 rounded-lg p-2.5 bg-gradient-to-r from-gray-50 to-white text-xs hover:shadow-sm transition-shadow"
+              >
+                <div className="font-semibold flex items-center justify-between mb-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-gray-500">#{idx + 1}</span>
+                    <span className="text-gray-800">{r.name}</span>
                   </div>
-                ) : (
-                  <ul className="list-disc ml-5">
-                    {r.matchedFactors.map((f: string) => (
-                      <li key={f}>{f}</li>
+                  <span
+                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                      r.level === 'High'
+                        ? 'bg-red-100 text-red-700'
+                        : r.level === 'Medium'
+                        ? 'bg-yellow-100 text-yellow-700'
+                        : 'bg-green-100 text-green-700'
+                    }`}
+                  >
+                    {r.level}
+                  </span>
+                </div>
+                <div className="text-gray-600 mb-1">
+                  📊 Score: <span className="font-semibold">{r.score}</span>
+                </div>
+                {r.matchedFactors.length > 0 && (
+                  <div className="mt-2 text-[11px] text-gray-600 bg-white p-1.5 rounded border border-gray-100">
+                    <div className="font-medium text-gray-700 mb-1">
+                      Factors:
+                    </div>
+                    {r.matchedFactors.slice(0, 2).map((f: string) => (
+                      <div key={f} className="text-gray-600">
+                        ✓ {f}
+                      </div>
                     ))}
-                  </ul>
+                    {r.matchedFactors.length > 2 && (
+                      <div className="text-gray-500 text-[10px] mt-1">
+                        +{r.matchedFactors.length - 2} more
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* EMPTY STATE */}
+      {results.length === 0 && (
+        <div className="mt-4 text-center py-8 text-gray-500">
+          <AlertCircle className="w-8 h-8 mx-auto mb-2 text-gray-400" />
+          <p className="text-xs font-medium">
+            Select parameters and click "Predict Risk" or use Planet data
+          </p>
+        </div>
+      )}
     </div>
   );
 }

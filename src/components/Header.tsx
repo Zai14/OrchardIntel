@@ -1,12 +1,22 @@
-import React from 'react';
-import { Apple, Leaf, Stethoscope, User, LogOut } from 'lucide-react';
+import React, { useState } from 'react';
+import { Apple, Leaf, Stethoscope, User, LogOut, MoreVertical, Database, Brain } from 'lucide-react';
 
 interface HeaderProps {
   user?: any;
   onSignOut?: () => void;
+  onMenuItemClick?: (section: 'dataset' | 'train') => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ user, onSignOut }) => {
+export const Header: React.FC<HeaderProps> = ({ user, onSignOut, onMenuItemClick }) => {
+  const [showMenu, setShowMenu] = useState(false);
+
+  const handleMenuClick = (section: 'dataset' | 'train') => {
+    if (onMenuItemClick) {
+      onMenuItemClick(section);
+    }
+    setShowMenu(false);
+  };
+
   return (
     <header className="bg-gradient-to-r from-green-600 to-green-700 text-white py-8 px-4">
       <div className="max-w-6xl mx-auto">
@@ -19,13 +29,44 @@ export const Header: React.FC<HeaderProps> = ({ user, onSignOut }) => {
                 <User className="w-4 h-4" />
                 <span className="text-sm">{user.email}</span>
               </div>
-              <button
-                onClick={onSignOut}
-                className="flex items-center space-x-1 text-green-200 hover:text-white transition-colors text-sm"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>Sign Out</span>
-              </button>
+
+              {/* ✅ THREE DOTS MENU */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="p-2 hover:bg-green-500 rounded-lg transition-colors duration-200"
+                >
+                  <MoreVertical className="w-5 h-5 text-white" />
+                </button>
+
+                {showMenu && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
+                    <button
+                      onClick={() => handleMenuClick('dataset')}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center space-x-2 border-b border-gray-200 text-gray-700"
+                    >
+                      <Database className="w-4 h-4" />
+                      <span className="text-sm font-medium">Dataset Management</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleMenuClick('train')}
+                      className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center space-x-2 border-b border-gray-200 text-gray-700"
+                    >
+                      <Brain className="w-4 h-4" />
+                      <span className="text-sm font-medium">Model Training</span>
+                    </button>
+
+                    <button
+                      onClick={onSignOut}
+                      className="w-full text-left px-4 py-3 hover:bg-red-50 flex items-center space-x-2 text-red-600 font-medium"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span className="text-sm">Sign Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

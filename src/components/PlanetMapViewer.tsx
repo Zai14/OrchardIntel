@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { fetchPlanetInsights } from '../services/planetService';
-import { saveAOI, getUserAOIs, deleteAllUserAOIs, SavedAOI } from '../services/aoiService';
+import { saveAOI, getUserAOIs, deleteAllUserAOIs, deleteAOI, SavedAOI } from '../services/aoiService';
 import { supabase } from '../services/supabaseClient';
 
 const LAYER_IDS = [
@@ -159,45 +159,54 @@ export const PlanetMapViewer: React.FC<Props> = ({
   useEffect(() => {
     const loadAOIs = async () => {
       setLoadingAOIs(true);
-      const aois = await getUserAOIs(configId);
-      setSavedAOIs(aois);
-      
-      // Render them on map
-      const L = (window as any).L;
-      if (mapRef.current && L && aois.length > 0) {
-        aois.forEach((aoi) => {
-          const coords = aoi.geojson.geometry.coordinates;
-          let shape: any = null;
+      try {
+        const aois = await getUserAOIs(configId);
+        setSavedAOIs(aois);
+        
+        // ✅ FIXED: Populate drawnGeoJSON with loaded AOIs
+        const loadedGeoJSON = aois.map(aoi => aoi.geojson);
+        setDrawnGeoJSON(loadedGeoJSON);
+        
+        // ✅ Render them on map
+        const L = (window as any).L;
+        if (mapRef.current && L && aois.length > 0) {
+          aois.forEach((aoi) => {
+            const coords = aoi.geojson.geometry.coordinates;
+            let shape: any = null;
 
-          if (aoi.geojson.geometry.type === 'LineString') {
-            const latLngs = coords.map((c: number[]) => [c[1], c[0]]);
-            shape = L.polyline(latLngs, {
-              color: '#10b981',
-              weight: 3
-            }).addTo(mapRef.current);
-          } else if (aoi.geojson.geometry.type === 'Polygon') {
-            const latLngs = coords[0].map((c: number[]) => [c[1], c[0]]);
-            shape = L.polygon(latLngs, {
-              color: '#10b981',
-              fillColor: '#10b981',
-              fillOpacity: 0.2,
-              weight: 2
-            }).addTo(mapRef.current);
-          }
+            if (aoi.geojson.geometry.type === 'LineString') {
+              const latLngs = coords.map((c: number[]) => [c[1], c[0]]);
+              shape = L.polyline(latLngs, {
+                color: '#10b981',
+                weight: 3
+              }).addTo(mapRef.current);
+            } else if (aoi.geojson.geometry.type === 'Polygon') {
+              const latLngs = coords[0].map((c: number[]) => [c[1], c[0]]);
+              shape = L.polygon(latLngs, {
+                color: '#10b981',
+                fillColor: '#10b981',
+                fillOpacity: 0.2,
+                weight: 2
+              }).addTo(mapRef.current);
+            }
 
-          if (shape) {
-            shape.bindPopup(`
-              <div style="padding: 8px;">
-                <strong>${aoi.name || 'Unnamed AOI'}</strong><br/>
-                <small>Created: ${new Date(aoi.created_at).toLocaleString()}</small>
-              </div>
-            `);
-            drawnShapesRef.current.push(shape);
-          }
-        });
+            if (shape) {
+              shape.bindPopup(`
+                <div style="padding: 8px;">
+                  <strong>${aoi.name || 'Unnamed AOI'}</strong><br/>
+                  <small>Created: ${new Date(aoi.created_at).toLocaleString()}</small>
+                </div>
+              `);
+              drawnShapesRef.current.push(shape);
+            }
+          });
+        }
+        
+        setLoadingAOIs(false);
+      } catch (error) {
+        console.error('❌ Error loading AOIs:', error);
+        setLoadingAOIs(false);
       }
-      
-      setLoadingAOIs(false);
     };
 
     loadAOIs();
@@ -462,6 +471,28 @@ export const PlanetMapViewer: React.FC<Props> = ({
     cancelDrawing();
   };
 
+  // ✅ Delete single AOI
+  const handleDeleteAOI = async (aoiId: string, index: number) => {
+    try {
+      const success = await deleteAOI(aoiId);
+      if (success) {
+        // Remove from state
+        setSavedAOIs(savedAOIs.filter(aoi => aoi.id !== aoiId));
+        setDrawnGeoJSON(drawnGeoJSON.filter((_, i) => i !== index));
+        
+        // Remove from map
+        if (drawnShapesRef.current[index]) {
+          mapRef.current.removeLayer(drawnShapesRef.current[index]);
+          drawnShapesRef.current.splice(index, 1);
+        }
+        
+        console.log('✅ AOI deleted successfully');
+      }
+    } catch (error) {
+      console.error('❌ Error deleting AOI:', error);
+    }
+  };
+
   const toggleLayer = async (id: string) => {
     const L = (window as any).L;
     const on = !activeLayers[id];
@@ -704,6 +735,32 @@ export const PlanetMapViewer: React.FC<Props> = ({
     }
   };
 
+  // ✅ Set map center to first loaded AOI
+  useEffect(() => {
+    if (drawnGeoJSON.length > 0 && !initialLat && !initialLon) {
+      const firstAOI = drawnGeoJSON[0];
+      const coords = firstAOI.geometry.coordinates;
+      
+      if (firstAOI.geometry.type === 'Point') {
+        // Point: [lon, lat]
+        setLat(coords[1]);
+        setLon(coords[0]);
+      } else if (firstAOI.geometry.type === 'LineString' || firstAOI.geometry.type === 'Polygon') {
+        // Calculate center
+        const flatCoords = firstAOI.geometry.type === 'Polygon' ? coords[0] : coords;
+        let sumLat = 0, sumLon = 0;
+        flatCoords.forEach((c: number[]) => {
+          sumLon += c[0];
+          sumLat += c[1];
+        });
+        const centerLat = sumLat / flatCoords.length;
+        const centerLon = sumLon / flatCoords.length;
+        setLat(centerLat);
+        setLon(centerLon);
+      }
+    }
+  }, [drawnGeoJSON, initialLat, initialLon]);
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-4 h-full flex flex-col">
       <div className="text-sm text-gray-600 mb-2">Planet Map Viewer</div>
@@ -782,12 +839,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
               <span className="text-xs font-semibold">Drawing Tools (AOI)</span>
               {(drawnGeoJSON.length > 0 || savedAOIs.length > 0) && (
                 <div className="flex gap-2">
-                  <button
-                    onClick={showGeoJSONData}
-                    className="text-[11px] px-2 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"
-                  >
-                    Show Data ({drawnGeoJSON.length})
-                  </button>
                   <button
                     onClick={clearAllDrawings}
                     className="text-[11px] px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100"

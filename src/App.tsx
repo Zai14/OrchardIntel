@@ -17,7 +17,7 @@ import ClimateRiskPredictor from './components/ClimateRiskPredictor';
 import { PredictionResult } from './types/disease';
 import { TrainingConfig } from './types/dataset';
 import type { Dataset, Model } from './lib/supabase';
-import { RefreshCw, Info, Database, Brain } from 'lucide-react';
+import { RefreshCw, Info, Database, Brain, MoreVertical, LogOut } from 'lucide-react';
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -33,6 +33,7 @@ function App() {
   const [models, setModels] = useState<Model[]>([]);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [isTraining, setIsTraining] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
   const [trainingProgress, setTrainingProgress] = useState({
     currentEpoch: 0,
     totalEpochs: 0,
@@ -91,6 +92,7 @@ function App() {
     await supabase.auth.signOut();
     setUser(null);
     setIsAuthenticated(false);
+    setShowMenu(false);
   };
 
   const handleImageSelect = (file: File) => {
@@ -258,22 +260,26 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50">
-      <Header user={user} onSignOut={handleSignOut} />
+      <Header 
+        user={user} 
+        onSignOut={handleSignOut}
+        onMenuItemClick={(section) => setActiveSection(section as any)}
+      />
 
       {/* widened: let content stretch more */}
       <main className="w-full max-w-7xl mx-auto px-4 py-8">
-        {/* Navigation Tabs */}
-        <div className="flex justify-center mb-8">
+        {/* Navigation Tabs - ONLY Disease & Climate VISIBLE - CENTERED */}
+        <div className="flex justify-center items-center mb-8">
           <div className="flex space-x-1 bg-white rounded-xl p-1 shadow-sm border border-gray-200">
             {[
               { id: 'predict', label: 'Disease Prediction', icon: Brain },
               { id: 'climate', label: 'Climate Risk', icon: Info },
-              { id: 'dataset', label: 'Dataset Management', icon: Database },
-              { id: 'train', label: 'Model Training', icon: Brain },
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveSection(tab.id as any)}
+                onClick={() => {
+                  setActiveSection(tab.id as any);
+                }}
                 className={`flex items-center space-x-2 px-6 py-3 rounded-lg font-medium transition-all duration-200 ${
                   activeSection === tab.id
                     ? 'bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md'
@@ -404,7 +410,6 @@ function App() {
         {/* Climate Risk Section */}
         {activeSection === 'climate' && (
           <div className="mb-8">
-            {/* let the climate card take more horizontal space */}
             <ClimateRiskPredictor />
           </div>
         )}
@@ -448,7 +453,7 @@ function App() {
         <footer className="text-center py-8 text-gray-600">
           <div className="border-t border-gray-200 pt-8">
             <p className="text-sm">
-              🍃 OrchardIntel: Apple Disease Detector with Planet Climate Risk Advisor• Powered by Advanced Computer Vision •
+              🍃 OrchardIntel: Apple Disease Detector with Planet Climate Risk Advisor • Powered by Advanced Computer Vision •
               For Educational and Research Purposes
             </p>
             <p className="text-xs mt-2 text-gray-500">

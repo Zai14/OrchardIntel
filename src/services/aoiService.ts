@@ -51,10 +51,11 @@ export const saveAOI = async (
 
 export const getUserAOIs = async (configId?: string): Promise<SavedAOI[]> => {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
     
-    if (!user) {
-      console.log('⚠️ No user logged in - no AOIs loaded');
+    // ✅ FIXED: Better error handling
+    if (authError || !user) {
+      console.log('⚠️ No user logged in or auth error:', authError);
       return [];
     }
 
@@ -75,7 +76,7 @@ export const getUserAOIs = async (configId?: string): Promise<SavedAOI[]> => {
       throw error;
     }
     
-    console.log(`✅ Loaded ${data?.length || 0} AOIs from Supabase`);
+    console.log(`✅ Loaded ${data?.length || 0} AOIs for user ${user.id}`);
     return data || [];
   } catch (error) {
     console.error('❌ Error loading AOIs:', error);

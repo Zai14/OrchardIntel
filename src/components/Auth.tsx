@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { User, Lock, Mail, LogIn, UserPlus } from 'lucide-react';
+import { User, Lock, Mail, LogIn, UserPlus, CheckCircle } from 'lucide-react';
 
 interface AuthProps {
   onAuthChange: (user: any) => void;
@@ -12,9 +12,17 @@ export const Auth: React.FC<AuthProps> = ({ onAuthChange }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // ✅ Check terms acceptance for sign up
+    if (!isLogin && !termsAccepted) {
+      setError('You must accept the terms and conditions to sign up');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -39,10 +47,6 @@ export const Auth: React.FC<AuthProps> = ({ onAuthChange }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGuestMode = () => {
-    onAuthChange(null); // Continue as guest
   };
 
   return (
@@ -95,6 +99,31 @@ export const Auth: React.FC<AuthProps> = ({ onAuthChange }) => {
             </div>
           </div>
 
+          {/* ✅ TERMS AND CONDITIONS - ONLY FOR SIGN UP */}
+          {!isLogin && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="terms"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="w-5 h-5 text-green-600 rounded focus:ring-2 focus:ring-green-500 mt-1 cursor-pointer"
+                />
+                <label htmlFor="terms" className="text-sm text-gray-700 cursor-pointer">
+                  I agree to the{' '}
+                  <a href="#" className="text-green-600 hover:text-green-700 font-medium underline">
+                    Terms and Conditions
+                  </a>
+                  {' '}and{' '}
+                  <a href="#" className="text-green-600 hover:text-green-700 font-medium underline">
+                    Privacy Policy
+                  </a>
+                </label>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3">
               <p className="text-red-700 text-sm">{error}</p>
@@ -119,23 +148,15 @@ export const Auth: React.FC<AuthProps> = ({ onAuthChange }) => {
 
         <div className="mt-6 text-center">
           <button
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError(null);
+              setTermsAccepted(false);
+            }}
             className="text-green-600 hover:text-green-700 font-medium"
           >
             {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
           </button>
-        </div>
-
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <button
-            onClick={handleGuestMode}
-            className="w-full bg-gray-100 text-gray-700 py-3 px-4 rounded-lg font-medium hover:bg-gray-200 transition-colors duration-200"
-          >
-            Continue as Guest
-          </button>
-          <p className="text-xs text-gray-500 text-center mt-2">
-            Limited features available in guest mode
-          </p>
         </div>
       </div>
     </div>
