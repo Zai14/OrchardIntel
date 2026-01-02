@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { fetchPlanetInsights } from '../services/planetService';
-// remove unused submitAOI import
+import { saveAOI, getUserAOIs, deleteAllUserAOIs, SavedAOI } from '../services/aoiService';
+import { supabase } from '../services/supabaseClient';
 
 const LAYER_IDS = [
   // 🌱 EXISTING (11)
@@ -97,6 +98,10 @@ export const PlanetMapViewer: React.FC<Props> = ({
   // Add state for mode selection
   const [dataFetchMode, setDataFetchMode] = useState<'point' | 'boundary'>('point');
 
+  // ✅ State for saved AOIs
+  const [savedAOIs, setSavedAOIs] = useState<SavedAOI[]>([]);
+  const [loadingAOIs, setLoadingAOIs] = useState(false);
+
   // Add conversion functions before the useEffect hooks
   const convertToGeoJSON = (
     drawingType: 'line' | 'polygon' | 'rectangle',
@@ -140,7 +145,64 @@ export const PlanetMapViewer: React.FC<Props> = ({
     }
   };
 
-  // Remove the entire first useEffect and replace with this fixed version
+  // ✅ DEBUG: Log current user when component mounts
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      console.log('🔑 Current logged in user:', user?.id);
+      console.log('📧 User email:', user?.email);
+    };
+    checkUser();
+  }, []);
+
+  // ✅ Load saved AOIs on mount
+  useEffect(() => {
+    const loadAOIs = async () => {
+      setLoadingAOIs(true);
+      const aois = await getUserAOIs(configId);
+      setSavedAOIs(aois);
+      
+      // Render them on map
+      const L = (window as any).L;
+      if (mapRef.current && L && aois.length > 0) {
+        aois.forEach((aoi) => {
+          const coords = aoi.geojson.geometry.coordinates;
+          let shape: any = null;
+
+          if (aoi.geojson.geometry.type === 'LineString') {
+            const latLngs = coords.map((c: number[]) => [c[1], c[0]]);
+            shape = L.polyline(latLngs, {
+              color: '#10b981',
+              weight: 3
+            }).addTo(mapRef.current);
+          } else if (aoi.geojson.geometry.type === 'Polygon') {
+            const latLngs = coords[0].map((c: number[]) => [c[1], c[0]]);
+            shape = L.polygon(latLngs, {
+              color: '#10b981',
+              fillColor: '#10b981',
+              fillOpacity: 0.2,
+              weight: 2
+            }).addTo(mapRef.current);
+          }
+
+          if (shape) {
+            shape.bindPopup(`
+              <div style="padding: 8px;">
+                <strong>${aoi.name || 'Unnamed AOI'}</strong><br/>
+                <small>Created: ${new Date(aoi.created_at).toLocaleString()}</small>
+              </div>
+            `);
+            drawnShapesRef.current.push(shape);
+          }
+        });
+      }
+      
+      setLoadingAOIs(false);
+    };
+
+    loadAOIs();
+  }, [configId]);
+
   useEffect(() => {
     const ensureLeaflet = () =>
       new Promise<void>((resolve) => {
@@ -181,7 +243,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
           },
         ).addTo(mapRef.current);
 
-        // Map click handler - use ref to avoid closure issues
         mapRef.current.on('click', (e: any) => {
           const mode = drawingModeRef.current;
           if (mode === 'none') {
@@ -213,7 +274,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
                 
                 drawnShapesRef.current.push(rect);
                 
-                // Convert to GeoJSON and send to backend
                 const geoJSON: AOIGeoJSON = {
                   type: 'Feature',
                   geometry: {
@@ -228,7 +288,14 @@ export const PlanetMapViewer: React.FC<Props> = ({
                 
                 setDrawnGeoJSON(prevGeo => [...prevGeo, geoJSON]);
                 
-                // Send to backend without awaiting
+                // ✅ Save rectangle to Supabase
+                saveAOI(geoJSON, configId).then(savedAOI => {
+                  if (savedAOI) {
+                    setSavedAOIs(prev => [savedAOI, ...prev]);
+                    console.log('✅ Rectangle saved to database');
+                  }
+                });
+                
                 sendAOIToBackend(geoJSON).catch(err => 
                   console.error('Failed to send rectangle AOI:', err)
                 );
@@ -252,13 +319,12 @@ export const PlanetMapViewer: React.FC<Props> = ({
     return () => {
       cancelled = true;
     };
-  }, []); // Empty dependency array - only run once
+  }, []);
 
   useEffect(() => {
     const L = (window as any).L;
     if (!mapRef.current || !L) return;
     
-    // Don't update marker/view during drawing mode
     if (drawingMode !== 'none') return;
     
     mapRef.current.setView([lat, lon], mapRef.current.getZoom());
@@ -269,23 +335,19 @@ export const PlanetMapViewer: React.FC<Props> = ({
     }
   }, [lat, lon, drawingMode]);
 
-  // Sync drawingMode ref with state
   useEffect(() => {
     drawingModeRef.current = drawingMode;
   }, [drawingMode]);
 
-  // Handle drawing updates
   useEffect(() => {
     const L = (window as any).L;
     if (!mapRef.current || !L) return;
 
-    // Remove temporary line/polygon if exists
     if (tempLineRef.current) {
       mapRef.current.removeLayer(tempLineRef.current);
       tempLineRef.current = null;
     }
 
-    // Draw temporary line or polygon as user clicks
     if (currentDrawing.length > 0) {
       if (drawingMode === 'line' && currentDrawing.length >= 1) {
         tempLineRef.current = L.polyline(currentDrawing, {
@@ -305,8 +367,8 @@ export const PlanetMapViewer: React.FC<Props> = ({
     }
   }, [currentDrawing, drawingMode]);
 
-  // Modify finishDrawing to not use async/await directly
-  const finishDrawing = () => {
+  // ✅ MODIFIED: finishDrawing to save to Supabase
+  const finishDrawing = async () => {
     try {
       const L = (window as any).L;
       if (!mapRef.current || !L || currentDrawing.length === 0) return;
@@ -319,9 +381,7 @@ export const PlanetMapViewer: React.FC<Props> = ({
           color: '#3b82f6',
           weight: 3
         }).addTo(mapRef.current);
-        
         geoJSON = convertToGeoJSON('line', currentDrawing);
-        
       } else if (drawingMode === 'polygon' && currentDrawing.length >= 3) {
         shape = L.polygon(currentDrawing, {
           color: '#3b82f6',
@@ -329,27 +389,30 @@ export const PlanetMapViewer: React.FC<Props> = ({
           fillOpacity: 0.2,
           weight: 2
         }).addTo(mapRef.current);
-        
         geoJSON = convertToGeoJSON('polygon', currentDrawing);
       }
 
       if (shape && geoJSON) {
         drawnShapesRef.current.push(shape);
         
-        // Update state immediately
+        // ✅ Save to Supabase
+        const savedAOI = await saveAOI(geoJSON, configId);
+        if (savedAOI) {
+          setSavedAOIs(prev => [savedAOI, ...prev]);
+          console.log('✅ AOI saved to database');
+        }
+        
         setDrawnGeoJSON(prev => {
           const updated = [...prev, geoJSON!];
           console.log('✅ Total AOIs drawn:', updated.length);
           return updated;
         });
         
-        // Send to backend asynchronously without blocking
         sendAOIToBackend(geoJSON).catch(err => 
           console.error('⚠️ Background send failed:', err)
         );
       }
 
-      // Clean up
       if (tempLineRef.current && mapRef.current) {
         mapRef.current.removeLayer(tempLineRef.current);
         tempLineRef.current = null;
@@ -361,7 +424,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
       
     } catch (error) {
       console.error('❌ finishDrawing error:', error);
-      // Don't throw - just log and continue
       setCurrentDrawing([]);
       setDrawingMode('none');
       drawingModeRef.current = 'none';
@@ -383,13 +445,20 @@ export const PlanetMapViewer: React.FC<Props> = ({
     }
   };
 
-  const clearAllDrawings = () => {
+  // ✅ MODIFIED: clearAllDrawings to delete from Supabase
+  const clearAllDrawings = async () => {
     if (!mapRef.current) return;
+    
+    // Delete from database
+    await deleteAllUserAOIs();
+    
+    // Clear from map
     drawnShapesRef.current.forEach(shape => {
       mapRef.current.removeLayer(shape);
     });
     drawnShapesRef.current = [];
     setDrawnGeoJSON([]);
+    setSavedAOIs([]);
     cancelDrawing();
   };
 
@@ -542,7 +611,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
       : id === 'WBI' ? 'WBI'
       : id;
 
-  // Replace sendAOIToBackend with a simpler mock version:
   const sendAOIToBackend = async (aoiGeoJSON: AOIGeoJSON): Promise<any> => {
     const response = await fetch('https://kqilyltlrklxaxqqqisj.functions.supabase.co/planet-aoi', {
       method: 'POST',
@@ -561,7 +629,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
     return response.json();
   };
 
-  // Add this function BEFORE the return statement:
   const showGeoJSONData = () => {
     if (drawnGeoJSON.length === 0) {
       alert('No AOIs drawn yet. Draw a shape first!');
@@ -571,7 +638,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
     console.log('📍 Current GeoJSON AOIs:', drawnGeoJSON);
     console.log('📊 Total AOIs:', drawnGeoJSON.length);
     
-    // Show summary in alert
     const summary = drawnGeoJSON.map((aoi, idx) => 
       `${idx + 1}. ${aoi.properties.drawingType} (${aoi.geometry.type})`
     ).join('\n');
@@ -579,7 +645,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
     alert(`Total AOIs drawn: ${drawnGeoJSON.length}\n\n${summary}\n\nCheck console (F12) for full GeoJSON data.`);
   };
 
-  // Add these new functions before the return statement:
   const fetchPointData = async (latitude: number, longitude: number) => {
     const response = await fetchPlanetInsights({
       lat: latitude,
@@ -622,7 +687,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
     }
   };
 
-  // ✅ single Live handler decides point vs boundary
   const handleLive = async () => {
     try {
       if (dataFetchMode === 'point') {
@@ -686,6 +750,20 @@ export const PlanetMapViewer: React.FC<Props> = ({
           </p>
         </div>
 
+        {/* ✅ LOADING STATE */}
+        {loadingAOIs && (
+          <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
+            📦 Loading saved boundaries...
+          </div>
+        )}
+
+        {/* ✅ SAVED AOIS COUNT */}
+        {savedAOIs.length > 0 && (
+          <div className="text-xs text-green-600 bg-green-50 p-2 rounded">
+            ✅ {savedAOIs.length} saved AOI(s) loaded from database
+          </div>
+        )}
+
         {/* SINGLE POINT MODE */}
         {dataFetchMode === 'point' && (
           <div className="border-t pt-3">
@@ -693,7 +771,6 @@ export const PlanetMapViewer: React.FC<Props> = ({
             <div className="bg-white p-2 rounded text-xs space-y-1 border border-gray-200">
               <div><span className="text-gray-600">Latitude:</span> <span className="font-mono">{lat.toFixed(6)}</span></div>
               <div><span className="text-gray-600">Longitude:</span> <span className="font-mono">{lon.toFixed(6)}</span></div>
-              {/* ❌ remove per-point fetch button; Live handles it */}
             </div>
           </div>
         )}
@@ -703,7 +780,7 @@ export const PlanetMapViewer: React.FC<Props> = ({
           <div className="border-t pt-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold">Drawing Tools (AOI)</span>
-              {drawnGeoJSON.length > 0 && (
+              {(drawnGeoJSON.length > 0 || savedAOIs.length > 0) && (
                 <div className="flex gap-2">
                   <button
                     onClick={showGeoJSONData}
@@ -715,7 +792,7 @@ export const PlanetMapViewer: React.FC<Props> = ({
                     onClick={clearAllDrawings}
                     className="text-[11px] px-2 py-1 bg-red-50 text-red-600 rounded hover:bg-red-100"
                   >
-                    Clear All
+                    Clear All ({savedAOIs.length} saved)
                   </button>
                 </div>
               )}
