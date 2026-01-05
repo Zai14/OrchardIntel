@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { Apple, Leaf, Stethoscope, User, LogOut, MoreVertical, Database, Brain } from 'lucide-react';
+import { Apple, Leaf, Stethoscope, User, LogOut, MoreVertical, Database } from 'lucide-react';
 
 interface HeaderProps {
   user?: any;
   onSignOut?: () => void;
-  onMenuItemClick?: (section: 'dataset' | 'train') => void;
+  onMenuItemClick?: (section: 'dataset') => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ user, onSignOut, onMenuItemClick }) => {
   const [showMenu, setShowMenu] = useState(false);
 
-  const handleMenuClick = (section: 'dataset' | 'train') => {
+  const handleMenuClick = (section: 'dataset') => {
     if (onMenuItemClick) {
       onMenuItemClick(section);
     }
@@ -47,14 +47,6 @@ export const Header: React.FC<HeaderProps> = ({ user, onSignOut, onMenuItemClick
                     >
                       <Database className="w-4 h-4" />
                       <span className="text-sm font-medium">Dataset Management</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleMenuClick('train')}
-                      className="w-full text-left px-4 py-3 hover:bg-gray-50 flex items-center space-x-2 border-b border-gray-200 text-gray-700"
-                    >
-                      <Brain className="w-4 h-4" />
-                      <span className="text-sm font-medium">Model Training</span>
                     </button>
 
                     <button
