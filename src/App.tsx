@@ -18,6 +18,7 @@ import { PredictionResult } from './types/disease';
 import { TrainingConfig } from './types/dataset';
 import type { Dataset, Model } from './lib/supabase';
 import { RefreshCw, Info, Database, Brain, MoreVertical, LogOut } from 'lucide-react';
+import { TrainingInterface } from './components/TrainingInterface';
 
 function App() {
   const [user, setUser] = useState<any>(null);
@@ -439,6 +440,27 @@ function App() {
               eta={trainingProgress.eta}
             />
 
+            {/* Models List - Let user select which model to train */}
+            {models.length > 0 && (
+              <div className="bg-white p-6 rounded-lg shadow mb-6">
+                <h3 className="text-lg font-bold mb-4">Select Model to Train</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {models.map((model) => (
+                    <div key={model.id} className="border p-4 rounded cursor-pointer hover:bg-blue-50"
+                      onClick={() => setSelectedModel(model.id)}>
+                      <p className="font-semibold">{model.name}</p>
+                      <p className="text-sm text-gray-600">Status: {model.status}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Training Interface */}
+            {selectedModel && (
+              <TrainingInterface modelId={selectedModel} />
+            )}
+            
             <DatasetManager
               onDatasetUpload={handleDatasetUpload}
               datasets={datasets}
