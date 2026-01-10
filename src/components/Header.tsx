@@ -68,7 +68,7 @@ export const Header: React.FC<HeaderProps> = ({ user, onSignOut, onMenuItemClick
             <Leaf className="w-7 h-7 text-green-200 absolute -top-2 -right-2 animate-pulse" />
           </div>
           <div className="text-center">
-            <h1 className="text-6xl md:text-7xl font-bold tracking-tight text-white drop-shadow-2xl" style={{
+            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-white drop-shadow-2xl" style={{
               textShadow: '0 2px 4px rgba(0,0,0,0.1), 0 4px 8px rgba(16, 185, 129, 0.2)'
             }}>
               OrchardIntel

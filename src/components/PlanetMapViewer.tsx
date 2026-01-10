@@ -3,6 +3,85 @@ import { fetchPlanetInsights } from '../services/planetService';
 import { saveAOI, getUserAOIs, deleteAllUserAOIs, deleteAOI, updateAOIName, SavedAOI } from '../services/aoiService';
 import { supabase } from '../services/supabaseClient';
 
+// Helper function to calculate distance between two points (Haversine formula)
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 6371000; // Earth radius in meters
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Helper function to calculate line length
+const calculateLineLength = (coords: number[][]): { meters: number; feet: number; kilometers: number; miles: number } => {
+  if (coords.length < 2) return { meters: 0, feet: 0, kilometers: 0, miles: 0 };
+  
+  let totalDistance = 0;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const [lon1, lat1] = coords[i];
+    const [lon2, lat2] = coords[i + 1];
+    totalDistance += calculateDistance(lat1, lon1, lat2, lon2);
+  }
+  
+  return {
+    meters: totalDistance,
+    feet: totalDistance * 3.28084,
+    kilometers: totalDistance / 1000,
+    miles: totalDistance / 1609.34
+  };
+};
+
+// Helper function to calculate polygon area
+const calculatePolygonArea = (coords: number[][]): { sqMeters: number; sqFeet: number; acres: number; hectares: number } => {
+  if (coords.length < 3) return { sqMeters: 0, sqFeet: 0, acres: 0, hectares: 0 };
+
+  // Convert lat/lon to approximate meters using spherical Earth
+  const R = 6371000; // Earth radius in meters
+  
+  let area = 0;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const [lon1, lat1] = coords[i];
+    const [lon2, lat2] = coords[i + 1];
+    
+    const x1 = lon1 * Math.PI / 180 * R * Math.cos(lat1 * Math.PI / 180);
+    const y1 = lat1 * Math.PI / 180 * R;
+    const x2 = lon2 * Math.PI / 180 * R * Math.cos(lat2 * Math.PI / 180);
+    const y2 = lat2 * Math.PI / 180 * R;
+    
+    area += x1 * y2 - x2 * y1;
+  }
+  
+  const sqMeters = Math.abs(area / 2);
+  const sqFeet = sqMeters * 10.7639;
+  const acres = sqMeters * 0.000247105;
+  const hectares = sqMeters / 10000;
+
+  return { sqMeters, sqFeet, acres, hectares };
+};
+
+const calculateMeasurement = (geojson: AOIGeoJSON): { 
+  type: 'area' | 'length' | 'none';
+  area?: { sqMeters: number; sqFeet: number; acres: number; hectares: number };
+  length?: { meters: number; feet: number; kilometers: number; miles: number };
+} => {
+  if (geojson.geometry.type === 'Polygon') {
+    return { 
+      type: 'area',
+      area: calculatePolygonArea(geojson.geometry.coordinates[0])
+    };
+  } else if (geojson.geometry.type === 'LineString') {
+    return {
+      type: 'length',
+      length: calculateLineLength(geojson.geometry.coordinates as number[][])
+    };
+  }
+  return { type: 'none' };
+};
+
 const LAYER_IDS = [
   // 🌱 EXISTING (11)
   'EVI', '3_NDVI-L1C', 'MOISTURE-INDEX', '5_MOISTURE-INDEX-L1C',
@@ -102,6 +181,17 @@ export const PlanetMapViewer: React.FC<Props> = ({
   const [savedAOIs, setSavedAOIs] = useState<SavedAOI[]>([]);
   const [loadingAOIs, setLoadingAOIs] = useState(false);
   const [selectedBoundaryId, setSelectedBoundaryId] = useState<string | null>(null);
+
+  // State for selected boundary details
+  const [selectedBoundaryDetails, setSelectedBoundaryDetails] = useState<{
+    name: string;
+    measurement: {
+      type: 'area' | 'length' | 'none';
+      area?: { sqMeters: number; sqFeet: number; acres: number; hectares: number };
+      length?: { meters: number; feet: number; kilometers: number; miles: number };
+    };
+    type: string;
+  } | null>(null);
 
   // Mask overlay state
   const maskLayerRef = useRef<any>(null);
@@ -578,6 +668,8 @@ export const PlanetMapViewer: React.FC<Props> = ({
     drawnShapesRef.current = [];
     setDrawnGeoJSON([]);
     setSavedAOIs([]);
+    setSelectedBoundaryId(null);
+    setSelectedBoundaryDetails(null);
     cancelDrawing();
   };
 
@@ -844,6 +936,14 @@ export const PlanetMapViewer: React.FC<Props> = ({
     // Set as selected
     setSelectedBoundaryId(aoi.id);
 
+    // Calculate measurement (area for polygons, length for lines)
+    const measurement = calculateMeasurement(aoi.geojson);
+    setSelectedBoundaryDetails({
+      name: aoi.name || 'Unnamed Boundary',
+      measurement,
+      type: aoi.geojson.geometry.type
+    });
+
     const coords = aoi.geojson.geometry.coordinates;
     let shape: any = null;
 
@@ -1018,45 +1118,110 @@ export const PlanetMapViewer: React.FC<Props> = ({
                   <span>📍 Saved Boundaries ({savedAOIs.length})</span>
                 </div>
                 <div className="max-h-32 overflow-y-auto space-y-1 mb-3">
-                  {savedAOIs.map((aoi) => (
-                    <div
-                      key={aoi.id}
-                      className={`flex items-center gap-2 px-3 py-2 rounded text-xs transition-all ${
-                        selectedBoundaryId === aoi.id
-                          ? 'bg-green-500 text-white shadow-md'
-                          : 'bg-gray-50 border border-gray-200'
-                      }`}
-                    >
-                      <button
-                        onClick={() => loadSavedBoundary(aoi)}
-                        className="flex-1 text-left"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">{aoi.name || 'Unnamed Boundary'}</span>
-                          <span className="text-[10px] opacity-75">
-                            {aoi.geojson.geometry.type}
-                          </span>
-                        </div>
-                        <div className="text-[10px] opacity-75 mt-0.5">
-                          📅 {new Date(aoi.created_at).toLocaleDateString()}
-                        </div>
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          renameBoundary(aoi.id, aoi.name || 'Unnamed Boundary');
-                        }}
-                        className={`px-2 py-1 rounded hover:bg-opacity-80 transition-colors ${
+                  {savedAOIs.map((aoi) => {
+                    const measurement = calculateMeasurement(aoi.geojson);
+                    return (
+                      <div
+                        key={aoi.id}
+                        className={`flex items-center gap-2 px-3 py-2 rounded text-xs transition-all ${
                           selectedBoundaryId === aoi.id
-                            ? 'bg-green-600 text-white'
-                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            ? 'bg-green-500 text-white shadow-md'
+                            : 'bg-gray-50 border border-gray-200'
                         }`}
-                        title="Rename boundary"
                       >
-                        ✏️
-                      </button>
-                    </div>
-                  ))}
+                        <button
+                          onClick={() => loadSavedBoundary(aoi)}
+                          className="flex-1 text-left"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-medium">{aoi.name || 'Unnamed Boundary'}</span>
+                            <span className="text-[10px] opacity-75">
+                              {aoi.geojson.geometry.type}
+                            </span>
+                          </div>
+                          <div className="text-[10px] opacity-75 mt-0.5 flex items-center gap-2">
+                            {measurement.type === 'area' && measurement.area && (
+                              <span>📐 {measurement.area.acres.toFixed(2)} ac</span>
+                            )}
+                            <span>📅 {new Date(aoi.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            renameBoundary(aoi.id, aoi.name || 'Unnamed Boundary');
+                          }}
+                          className={`px-2 py-1 rounded hover:bg-opacity-80 transition-colors ${
+                            selectedBoundaryId === aoi.id
+                              ? 'bg-green-600 text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                          title="Rename boundary"
+                        >
+                          ✏️
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Selected Boundary Details */}
+            {selectedBoundaryDetails && (
+              <div className="mb-4 p-3 bg-green-50 border-l-4 border-green-600 rounded">
+                <div className="text-xs font-semibold text-green-900 mb-2">
+                  📊 Selected Boundary Details
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Name:</span>
+                    <span className="font-medium">{selectedBoundaryDetails.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Type:</span>
+                    <span className="font-medium">{selectedBoundaryDetails.type}</span>
+                  </div>
+                  {selectedBoundaryDetails.measurement.type === 'area' && selectedBoundaryDetails.measurement.area && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Area (sq ft):</span>
+                        <span className="font-medium">{selectedBoundaryDetails.measurement.area.sqFeet.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Area (sq m):</span>
+                        <span className="font-medium">{selectedBoundaryDetails.measurement.area.sqMeters.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Area (acres):</span>
+                        <span className="font-medium">{selectedBoundaryDetails.measurement.area.acres.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Area (hectares):</span>
+                        <span className="font-medium">{selectedBoundaryDetails.measurement.area.hectares.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                  {selectedBoundaryDetails.measurement.type === 'length' && selectedBoundaryDetails.measurement.length && (
+                    <>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Length (feet):</span>
+                        <span className="font-medium">{selectedBoundaryDetails.measurement.length.feet.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Length (meters):</span>
+                        <span className="font-medium">{selectedBoundaryDetails.measurement.length.meters.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Length (km):</span>
+                        <span className="font-medium">{selectedBoundaryDetails.measurement.length.kilometers.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Length (miles):</span>
+                        <span className="font-medium">{selectedBoundaryDetails.measurement.length.miles.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
             )}
