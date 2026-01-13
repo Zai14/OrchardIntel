@@ -82,26 +82,10 @@ export const Header: React.FC<HeaderProps> = ({ user, onSignOut, onMenuItemClick
           <Stethoscope className="w-12 h-12 text-green-50 drop-shadow-lg transform hover:scale-110 transition-transform duration-300" />
         </div>
         
-        <p className="text-center text-green-50 text-xl md:text-2xl max-w-4xl mx-auto leading-relaxed mb-8 font-light">
-          🌿 AI-Powered Apple Disease Detection & Climate Risk Analysis 🌱
+        <p className="text-center text-green-50 text-xl md:text-2xl max-w-4xl mx-auto leading-relaxed mb-0 font-light">
+          🌿 AI-Powered Apple Disease Detection & Planet-Climate Risk Analysis 🌱
         </p>
         
-        <div className="flex justify-center">
-          <div className="flex flex-wrap items-center justify-center gap-4 md:gap-8 text-sm text-white bg-white/15 backdrop-blur-md px-8 py-4 rounded-full border border-white/20 shadow-lg">
-            <div className="flex items-center space-x-2">
-              <div className="w-2.5 h-2.5 bg-green-300 rounded-full animate-pulse shadow-lg shadow-green-300/50"></div>
-              <span className="font-semibold">{user ? '🚀 Real CNN Training' : '⚡ Demo Mode'}</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2.5 h-2.5 bg-green-300 rounded-full animate-pulse shadow-lg shadow-green-300/50" style={{animationDelay: '0.5s'}}></div>
-              <span className="font-semibold">🍎 6 Disease Classes</span>
-            </div>
-            <div className="flex items-center space-x-2">
-              <div className="w-2.5 h-2.5 bg-green-300 rounded-full animate-pulse shadow-lg shadow-green-300/50" style={{animationDelay: '1s'}}></div>
-              <span className="font-semibold">{user ? '☁️ Cloud Storage' : '⚡ Instant Results'}</span>
-            </div>
-          </div>
-        </div>
       </div>
     </header>
   );

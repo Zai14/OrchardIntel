@@ -95,7 +95,7 @@ const LAYER_IDS = [
   '4_FALSE-COLOR-URBAN-L1C', '2_TONEMAPPED-NATURAL-COLOR-L1C', '6_SWIR-L1C',
   
   // 🔥 APPLE DISEASE (17 NEW)
-  'OSAVI', 'PSRI', 'EXG', 'VARI', 'GNDVI', 'NDMI', 'SAVI', 
+  'OSAVI', 'PSRI', 'EXG','EXR', 'VARI', 'GNDVI', 'NDMI', 'SAVI', 
   'NDWI', 'LSWI', 'NGRDI', 'CIGREEN', 'GLI', 'NDRE', 'MSAVI',
   'DVI', 'RVI', 'IPVI', 'NDGI',
   
@@ -106,7 +106,7 @@ const LAYER_IDS = [
 
 const LAYER_GROUPS = {
   '🌱 Vegetation Health': ['EVI', '3_NDVI-L1C', 'OSAVI', 'SAVI', 'MSAVI', 'GNDVI', 'NDRE', 'RENDVI', 'MCARI', 'MTCI', 'TCARI', 'TSAVI'],
-  '🔥 Apple Disease': ['PSRI', 'EXG', 'VARI', 'NGRDI', 'CIGREEN', 'GLI', 'NDGI'],
+  '🔥 Apple Disease': ['PSRI', 'EXG','EXR', 'VARI', 'NGRDI', 'CIGREEN', 'GLI', 'NDGI'],
   '💧 Moisture/Water': ['MOISTURE-INDEX', '5_MOISTURE-INDEX-L1C', 'NDMI', 'NDWI', 'LSWI'],
   '🌈 Visual': ['1_TRUE-COLOR-L1C', '2_FALSE-COLOR-L1C', '4_FALSE-COLOR-URBAN-L1C', '2_TONEMAPPED-NATURAL-COLOR-L1C', '6_SWIR-L1C'],
   '❄️ Other': ['8_NDSI-L1C', 'DVI', 'RVI', 'IPVI', 'WDVI', 'PVI', 'TVI', 'VIGREEN', 'SIPI', 'WBI']
@@ -455,7 +455,8 @@ export const PlanetMapViewer: React.FC<Props> = ({
         baseLayerRef.current = L.tileLayer(
           'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
           {
-            maxZoom: 19,
+            minZoom: 11,
+            maxZoom: 18,
             attribution: '© OpenStreetMap contributors',
           },
         ).addTo(mapRef.current);
@@ -1074,38 +1075,36 @@ export const PlanetMapViewer: React.FC<Props> = ({
 
       <div className="bg-gray-50 p-3 rounded flex flex-col gap-3">
         
-        {/* DATA FETCH MODE SELECTOR */}
-        <div>
-          <span className="text-xs font-semibold block mb-2">Data Fetch Mode</span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setDataFetchMode('point')}
-              className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                dataFetchMode === 'point'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              📍 Single Point
-            </button>
-            <button
-              onClick={() => setDataFetchMode('boundary')}
-              className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
-                dataFetchMode === 'boundary'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              🗺️ Boundary (AOI)
-            </button>
-          </div>
-          <p className="text-xs text-gray-600 mt-2">
-            {dataFetchMode === 'point' 
-              ? 'Click on map to select a single point' 
-              : 'Draw a shape to define area of interest'}
-          </p>
-        </div>
+       {/* DATA FETCH MODE TOGGLE */}
+<div>
+  <span className="text-xs font-semibold block mb-2">Data Fetch Mode</span>
 
+  <button
+    onClick={() => {
+      setDataFetchMode(prev => {
+        if (prev === 'boundary') {
+          cancelDrawing(); // clean up AOI when leaving boundary mode
+          return 'point';
+        }
+        return 'boundary';
+      });
+    }}
+    className={`w-full px-3 py-2 rounded text-sm font-medium transition-colors
+      ${dataFetchMode === 'point'
+        ? 'bg-blue-500 text-white hover:bg-blue-600'
+        : 'bg-green-500 text-white hover:bg-green-600'}`}
+  >
+    {dataFetchMode === 'point'
+      ? '📍 Live Location'
+      : '🗺️ Boundary (AOI)'}
+  </button>
+
+  <p className="text-xs text-gray-600 mt-2">
+    {dataFetchMode === 'point'
+      ? 'Click on map to select a single point'
+      : 'Draw a shape to define area of interest'}
+  </p>
+</div>
         {/* ✅ LOADING STATE */}
         {loadingAOIs && (
           <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
@@ -1281,7 +1280,7 @@ export const PlanetMapViewer: React.FC<Props> = ({
                   }
                   className="flex-1 px-3 py-2 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
-                  Finish Drawing
+                  Save Orchard 
                 </button>
                 <button
                   onClick={cancelDrawing}
