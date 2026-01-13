@@ -1408,14 +1408,7 @@ export const PlanetMapViewer: React.FC<Props> = ({
             </button>
           </div>
 
-          <label className="flex items-center gap-2 text-xs">
-            <input
-              type="checkbox"
-              checked={live}
-              onChange={(e) => setLive(e.target.checked)}
-            />
-            <span>Live updates</span>
-          </label>
+          
         </div>
       </div>
 
